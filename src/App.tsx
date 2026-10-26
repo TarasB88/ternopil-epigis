@@ -269,7 +269,7 @@ export default function App() {
             <div className="alert-note"><AlertTriangle size={16} /><p><strong>Важливо</strong> Просторове скупчення точок саме по собі не підтверджує спалах. Потрібна епідеміологічна оцінка.</p></div>
           </aside>
         </section>
-        <footer><span>Ternopil EpiGIS <b>·</b> MVP 0.1.0</span><span>Демонстраційні дані · Не для клінічних рішень</span></footer>
+        <footer><span>Ternopil EpiGIS <b>·</b> MVP 0.1.0</span><span>Демонстраційні дані · Не для клінічних рішень</span><span className="developer-credit">Розробник: <a href="https://www.linkedin.com/in/taras-burda-410401318/" target="_blank" rel="noopener noreferrer">Taras Burda <span aria-hidden="true">↗</span></a></span></footer>
       </main>
     </div>
   );
