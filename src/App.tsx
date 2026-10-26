@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
-import { Activity, AlertTriangle, CalendarDays, ChevronDown, Download, FileSpreadsheet, Filter, Layers3, MapPin, Search, ShieldCheck, Upload, Users, X, Camera } from "lucide-react";
+import { Activity, AlertTriangle, CalendarDays, ChevronDown, Download, FileSpreadsheet, Filter, Layers3, MapPin, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
 import * as XLSX from "xlsx";
 import html2canvas from "html2canvas";
 
@@ -97,8 +97,6 @@ export default function App() {
   const [showUpload, setShowUpload] = useState(false);
   const [onlyConfirmed, setOnlyConfirmed] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const mapCaptureRef = useRef<HTMLDivElement>(null);
-  const [capturingMap, setCapturingMap] = useState(false);
 
   const diseases = useMemo(() => ["Усі нозології", ...Array.from(new Set(cases.map((item) => item.disease))).sort()], [cases]);
   const hromadas = useMemo(() => ["Усі громади", ...Array.from(new Set(cases.map((item) => item.hromada))).sort()], [cases]);
@@ -156,66 +154,7 @@ export default function App() {
     XLSX.writeFile(workbook, "ternopil-epigis-import-template.xlsx");
   };
 
-  const captureMap = async () => {
-    if (!mapCaptureRef.current || capturingMap) return;
-    setCapturingMap(true);
-    try {
-      // Composite the currently rendered Leaflet tiles and its Canvas vector layer
-      // using their real browser rectangles. This avoids html2canvas misreading
-      // Leaflet's translate3d transforms after zoom animations.
-      const mapElement = mapCaptureRef.current.querySelector(".leaflet-map") as HTMLElement | null;
-      if (!mapElement) throw new Error("Leaflet map element not found");
-      await new Promise((resolve) => window.setTimeout(resolve, 250));
-      const bounds = mapElement.getBoundingClientRect();
-      const scale = 2;
-      const output = document.createElement("canvas");
-      output.width = Math.round(bounds.width * scale);
-      output.height = Math.round(bounds.height * scale);
-      const context = output.getContext("2d");
-      if (!context) throw new Error("Canvas context unavailable");
-      context.scale(scale, scale);
-      context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, bounds.width, bounds.height);
 
-      const drawVisibleElement = async (element: HTMLImageElement | HTMLCanvasElement) => {
-        const rect = element.getBoundingClientRect();
-        const left = Math.max(0, rect.left - bounds.left);
-        const top = Math.max(0, rect.top - bounds.top);
-        const right = Math.min(bounds.width, rect.right - bounds.left);
-        const bottom = Math.min(bounds.height, rect.bottom - bounds.top);
-        if (right <= left || bottom <= top) return;
-        if (element instanceof HTMLImageElement) {
-          if (!element.complete || !element.naturalWidth) return;
-          // Request CORS-enabled drawing; OSM tiles are served with permissive CORS.
-          context.drawImage(element, rect.left - bounds.left, rect.top - bounds.top, rect.width, rect.height);
-        } else {
-          context.drawImage(element, rect.left - bounds.left, rect.top - bounds.top, rect.width, rect.height);
-        }
-      };
-
-      const tiles = Array.from(mapElement.querySelectorAll<HTMLImageElement>("img.leaflet-tile"));
-      for (const tile of tiles) await drawVisibleElement(tile);
-      // Leaflet's preferCanvas renderer draws all CircleMarkers in a canvas layer.
-      const vectorCanvases = Array.from(mapElement.querySelectorAll<HTMLCanvasElement>("canvas"));
-      for (const layerCanvas of vectorCanvases) await drawVisibleElement(layerCanvas);
-
-      // Draw attribution in a stable, simple form rather than capturing controls.
-      context.save();
-      context.scale(1 / scale, 1 / scale);
-      context.restore();
-      const link = document.createElement("a");
-      const safeDate = new Date().toISOString().slice(0, 10);
-      link.download = `ternopil-epigis-map-${safeDate}.png`;
-      link.href = output.toDataURL("image/png");
-      link.click();
-      setMessage("Скріншот карти збережено у PNG.");
-    } catch (error) {
-      console.error("Map screenshot failed", error);
-      setMessage("Не вдалося створити PNG. Можливо, картографічна підкладка забороняє експорт зображень.");
-    } finally {
-      setCapturingMap(false);
-    }
-  };
 
   return (
     <div className="app-shell">
@@ -264,8 +203,8 @@ export default function App() {
           </aside>
 
           <section className="map-section">
-            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{filtered.length} записів на карті</span></div><div className="top-actions"><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span><button className="button button-light" onClick={captureMap} disabled={capturingMap}><Camera size={16} /> {capturingMap ? "Створення…" : "Скріншот PNG"}</button></div></div>
-            <div className="map-wrap" ref={mapCaptureRef}>
+            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{filtered.length} записів на карті</span></div><div className="top-actions"><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span></div></div>
+            <div className="map-wrap">
               <MapContainer center={[49.45, 25.55]} zoom={8} scrollWheelZoom preferCanvas={true} className="leaflet-map">
                 <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" crossOrigin="anonymous" />
                 <FitToCases cases={filtered} />
