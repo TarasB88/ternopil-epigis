@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
-import { Activity, AlertTriangle, CalendarDays, ChevronDown, Download, FileSpreadsheet, Filter, Layers3, MapPin, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
+import { Activity, AlertTriangle, CalendarDays, ChevronDown, Download, FileSpreadsheet, Filter, Layers3, MapPin, Search, ShieldCheck, Upload, Users, X, Camera } from "lucide-react";
 import * as XLSX from "xlsx";
+import html2canvas from "html2canvas";
 
 type CaseRecord = {
   id: string;
@@ -96,6 +97,8 @@ export default function App() {
   const [showUpload, setShowUpload] = useState(false);
   const [onlyConfirmed, setOnlyConfirmed] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const mapCaptureRef = useRef<HTMLDivElement>(null);
+  const [capturingMap, setCapturingMap] = useState(false);
 
   const diseases = useMemo(() => ["Усі нозології", ...Array.from(new Set(cases.map((item) => item.disease))).sort()], [cases]);
   const hromadas = useMemo(() => ["Усі громади", ...Array.from(new Set(cases.map((item) => item.hromada))).sort()], [cases]);
@@ -153,6 +156,33 @@ export default function App() {
     XLSX.writeFile(workbook, "ternopil-epigis-import-template.xlsx");
   };
 
+  const captureMap = async () => {
+    if (!mapCaptureRef.current || capturingMap) return;
+    setCapturingMap(true);
+    try {
+      // Allow Leaflet to finish painting visible map tiles before capturing.
+      await new Promise((resolve) => window.setTimeout(resolve, 350));
+      const canvas = await html2canvas(mapCaptureRef.current, {
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: "#ffffff",
+        scale: 2,
+        logging: false
+      });
+      const link = document.createElement("a");
+      const safeDate = new Date().toISOString().slice(0, 10);
+      link.download = `ternopil-epigis-map-${safeDate}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+      setMessage("Скріншот карти збережено у PNG. Якщо підкладка карти не відобразилася повністю, перевірте блокування зображень стороннього домену браузером.");
+    } catch (error) {
+      console.error("Map screenshot failed", error);
+      setMessage("Не вдалося створити скріншот карти. Спробуйте ще раз після повного завантаження карти.");
+    } finally {
+      setCapturingMap(false);
+    }
+  };
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -200,8 +230,8 @@ export default function App() {
           </aside>
 
           <section className="map-section">
-            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{filtered.length} записів на карті</span></div><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span></div>
-            <div className="map-wrap">
+            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{filtered.length} записів на карті</span></div><div className="top-actions"><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span><button className="button button-light" onClick={captureMap} disabled={capturingMap}><Camera size={16} /> {capturingMap ? "Створення…" : "Скріншот PNG"}</button></div></div>
+            <div className="map-wrap" ref={mapCaptureRef}>
               <MapContainer center={[49.45, 25.55]} zoom={8} scrollWheelZoom className="leaflet-map">
                 <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 <FitToCases cases={filtered} />
