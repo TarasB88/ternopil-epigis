@@ -160,28 +160,32 @@ export default function App() {
     if (!mapCaptureRef.current || capturingMap) return;
     setCapturingMap(true);
     try {
-      // Allow Leaflet to finish painting visible map tiles before capturing.
-      await new Promise((resolve) => window.setTimeout(resolve, 350));
-      const canvas = await html2canvas(mapCaptureRef.current, {
+      // Capture the Leaflet map itself (not its surrounding toolbar/wrapper).
+      // foreignObjectRendering lets the browser preserve Leaflet's pane transforms
+      // and the exact alignment between tile images and the Canvas-rendered markers.
+      await new Promise((resolve) => window.setTimeout(resolve, 800));
+      const mapElement = mapCaptureRef.current.querySelector(".leaflet-map") as HTMLElement | null;
+      if (!mapElement) throw new Error("Leaflet map element not found");
+      const canvas = await html2canvas(mapElement, {
         useCORS: true,
         allowTaint: false,
         backgroundColor: "#ffffff",
         scale: 2,
         logging: false,
-        // Leaflet's zoom/layer controls use positioned elements that html2canvas
-        // can misplace when rasterizing transformed map panes. Keep the export clean.
-        ignoreElements: (element) =>
-          element.classList?.contains("leaflet-control-container") ||
-          element.classList?.contains("leaflet-popup") ||
-          element.tagName === "BUTTON" ||
-          element.classList?.contains("map-disclaimer")
+        foreignObjectRendering: true,
+        imageTimeout: 15000,
+        onclone: (clonedDocument) => {
+          clonedDocument.querySelectorAll(".leaflet-control-container, .leaflet-popup").forEach((element) => {
+            (element as HTMLElement).style.display = "none";
+          });
+        }
       });
       const link = document.createElement("a");
       const safeDate = new Date().toISOString().slice(0, 10);
       link.download = `ternopil-epigis-map-${safeDate}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
-      setMessage("Скріншот карти збережено у PNG. Якщо підкладка карти не відобразилася повністю, перевірте блокування зображень стороннього домену браузером.");
+      setMessage("Скріншот карти збережено у PNG.");
     } catch (error) {
       console.error("Map screenshot failed", error);
       setMessage("Не вдалося створити скріншот карти. Спробуйте ще раз після повного завантаження карти.");
