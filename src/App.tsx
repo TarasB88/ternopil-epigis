@@ -167,7 +167,14 @@ export default function App() {
         allowTaint: false,
         backgroundColor: "#ffffff",
         scale: 2,
-        logging: false
+        logging: false,
+        // Leaflet's zoom/layer controls use positioned elements that html2canvas
+        // can misplace when rasterizing transformed map panes. Keep the export clean.
+        ignoreElements: (element) =>
+          element.classList?.contains("leaflet-control-container") ||
+          element.classList?.contains("leaflet-popup") ||
+          element.tagName === "BUTTON" ||
+          element.classList?.contains("map-disclaimer")
       });
       const link = document.createElement("a");
       const safeDate = new Date().toISOString().slice(0, 10);
