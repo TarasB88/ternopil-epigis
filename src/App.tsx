@@ -239,7 +239,7 @@ export default function App() {
           <section className="map-section">
             <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{filtered.length} записів на карті</span></div><div className="top-actions"><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span><button className="button button-light" onClick={captureMap} disabled={capturingMap}><Camera size={16} /> {capturingMap ? "Створення…" : "Скріншот PNG"}</button></div></div>
             <div className="map-wrap" ref={mapCaptureRef}>
-              <MapContainer center={[49.45, 25.55]} zoom={8} scrollWheelZoom className="leaflet-map">
+              <MapContainer center={[49.45, 25.55]} zoom={8} scrollWheelZoom preferCanvas={true} className="leaflet-map">
                 <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 <FitToCases cases={filtered} />
                 {filtered.map((item) => <CircleMarker key={item.id} center={[item.latitude, item.longitude]} radius={selected?.id === item.id ? 10 : 7} pathOptions={{ color: item.status === "Підтверджено" ? "#126b58" : "#d28a24", fillColor: item.status === "Підтверджено" ? "#21866d" : "#e6a744", fillOpacity: 0.88, weight: selected?.id === item.id ? 3 : 1.5 }} eventHandlers={{ click: () => setSelected(item) }}><Popup><strong>{item.disease}</strong><br />{item.settlement || item.hromada}<br />{item.date}<br />{item.status}</Popup></CircleMarker>)}
