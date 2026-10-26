@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from "react";
-import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { CircleMarker, GeoJSON, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
 import { Activity, AlertTriangle, CalendarDays, ChevronDown, Download, FileSpreadsheet, Filter, Layers3, MapPin, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
 import * as XLSX from "xlsx";
 
@@ -86,6 +86,7 @@ function toCase(row: Record<string, unknown>, index: number): CaseRecord | null 
 
 export default function App() {
   const [cases, setCases] = useState<CaseRecord[]>(DEMO_CASES);
+  const [hromadaBoundaries, setHromadaBoundaries] = useState<any>(null);
   const [disease, setDisease] = useState("Усі нозології");
   const [hromada, setHromada] = useState("Усі громади");
   const [fromDate, setFromDate] = useState("2026-01-01");
@@ -96,6 +97,24 @@ export default function App() {
   const [showUpload, setShowUpload] = useState(false);
   const [onlyConfirmed, setOnlyConfirmed] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/data/ternopil-hromadas.geojson")
+      .then((response) => {
+        if (!response.ok) throw new Error("GeoJSON unavailable");
+        return response.json();
+      })
+      .then((data) => {
+        if (!cancelled && data?.type === "FeatureCollection" && Array.isArray(data.features)) {
+          setHromadaBoundaries(data);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setMessage("Не вдалося завантажити межі громад. Перевір наявність файлу public/data/ternopil-hromadas.geojson у збірці.");
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const diseases = useMemo(() => ["Усі нозології", ...Array.from(new Set(cases.map((item) => item.disease))).sort()], [cases]);
   const hromadas = useMemo(() => ["Усі громади", ...Array.from(new Set(cases.map((item) => item.hromada))).sort()], [cases]);
@@ -206,6 +225,32 @@ export default function App() {
             <div className="map-wrap">
               <MapContainer center={[49.45, 25.55]} zoom={8} scrollWheelZoom preferCanvas={true} className="leaflet-map">
                 <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" crossOrigin="anonymous" />
+                {hromadaBoundaries && <GeoJSON
+                  data={hromadaBoundaries}
+                  style={(feature) => {
+                    const boundaryName = String(feature?.properties?.ADM3_UA ?? "");
+                    const isSelected = hromada !== "Усі громади" && (boundaryName === hromada || boundaryName.replace(/ громада$/i, "") === hromada.replace(/ громада$/i, ""));
+                    return {
+                      color: isSelected ? "#0f766e" : "#315b73",
+                      weight: isSelected ? 3 : 1.2,
+                      opacity: 0.9,
+                      fillColor: isSelected ? "#14b8a6" : "#78a6b8",
+                      fillOpacity: isSelected ? 0.22 : 0.07
+                    };
+                  }}
+                  onEachFeature={(feature, layer) => {
+                    const name = String(feature?.properties?.ADM3_UA ?? "Територіальна громада");
+                    const district = String(feature?.properties?.ADM2_UA ?? "");
+                    layer.bindTooltip(district ? `${name} · ${district} район` : name, { sticky: true });
+                    layer.on("click", () => {
+                      const match = hromadas.find((item) => item !== "Усі громади" &&
+                        (item.toLocaleLowerCase("uk-UA").includes(name.replace(/ громада$/i, "").toLocaleLowerCase("uk-UA")) ||
+                         name.toLocaleLowerCase("uk-UA").includes(item.replace(/ громада$/i, "").toLocaleLowerCase("uk-UA"))));
+                      if (match) setHromada(match);
+                      else setSearch(name.replace(/ територіальна громада$/i, "").replace(/ громада$/i, ""));
+                    });
+                  }}
+                />}
                 <FitToCases cases={filtered} />
                 {filtered.map((item) => <CircleMarker key={item.id} center={[item.latitude, item.longitude]} radius={selected?.id === item.id ? 10 : 7} pathOptions={{ color: item.status === "Підтверджено" ? "#126b58" : "#d28a24", fillColor: item.status === "Підтверджено" ? "#21866d" : "#e6a744", fillOpacity: 0.88, weight: selected?.id === item.id ? 3 : 1.5 }} eventHandlers={{ click: () => setSelected(item) }}><Popup><strong>{item.disease}</strong><br />{item.settlement || item.hromada}<br />{item.date}<br />{item.status}</Popup></CircleMarker>)}
               </MapContainer>
