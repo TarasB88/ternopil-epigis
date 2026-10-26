@@ -160,35 +160,58 @@ export default function App() {
     if (!mapCaptureRef.current || capturingMap) return;
     setCapturingMap(true);
     try {
-      // Capture the Leaflet map itself (not its surrounding toolbar/wrapper).
-      // foreignObjectRendering lets the browser preserve Leaflet's pane transforms
-      // and the exact alignment between tile images and the Canvas-rendered markers.
-      await new Promise((resolve) => window.setTimeout(resolve, 800));
+      // Composite the currently rendered Leaflet tiles and its Canvas vector layer
+      // using their real browser rectangles. This avoids html2canvas misreading
+      // Leaflet's translate3d transforms after zoom animations.
       const mapElement = mapCaptureRef.current.querySelector(".leaflet-map") as HTMLElement | null;
       if (!mapElement) throw new Error("Leaflet map element not found");
-      const canvas = await html2canvas(mapElement, {
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: "#ffffff",
-        scale: 2,
-        logging: false,
-        foreignObjectRendering: true,
-        imageTimeout: 15000,
-        onclone: (clonedDocument) => {
-          clonedDocument.querySelectorAll(".leaflet-control-container, .leaflet-popup").forEach((element) => {
-            (element as HTMLElement).style.display = "none";
-          });
+      await new Promise((resolve) => window.setTimeout(resolve, 250));
+      const bounds = mapElement.getBoundingClientRect();
+      const scale = 2;
+      const output = document.createElement("canvas");
+      output.width = Math.round(bounds.width * scale);
+      output.height = Math.round(bounds.height * scale);
+      const context = output.getContext("2d");
+      if (!context) throw new Error("Canvas context unavailable");
+      context.scale(scale, scale);
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, bounds.width, bounds.height);
+
+      const drawVisibleElement = async (element: HTMLImageElement | HTMLCanvasElement) => {
+        const rect = element.getBoundingClientRect();
+        const left = Math.max(0, rect.left - bounds.left);
+        const top = Math.max(0, rect.top - bounds.top);
+        const right = Math.min(bounds.width, rect.right - bounds.left);
+        const bottom = Math.min(bounds.height, rect.bottom - bounds.top);
+        if (right <= left || bottom <= top) return;
+        if (element instanceof HTMLImageElement) {
+          if (!element.complete || !element.naturalWidth) return;
+          // Request CORS-enabled drawing; OSM tiles are served with permissive CORS.
+          context.drawImage(element, rect.left - bounds.left, rect.top - bounds.top, rect.width, rect.height);
+        } else {
+          context.drawImage(element, rect.left - bounds.left, rect.top - bounds.top, rect.width, rect.height);
         }
-      });
+      };
+
+      const tiles = Array.from(mapElement.querySelectorAll<HTMLImageElement>("img.leaflet-tile"));
+      for (const tile of tiles) await drawVisibleElement(tile);
+      // Leaflet's preferCanvas renderer draws all CircleMarkers in a canvas layer.
+      const vectorCanvases = Array.from(mapElement.querySelectorAll<HTMLCanvasElement>("canvas"));
+      for (const layerCanvas of vectorCanvases) await drawVisibleElement(layerCanvas);
+
+      // Draw attribution in a stable, simple form rather than capturing controls.
+      context.save();
+      context.scale(1 / scale, 1 / scale);
+      context.restore();
       const link = document.createElement("a");
       const safeDate = new Date().toISOString().slice(0, 10);
       link.download = `ternopil-epigis-map-${safeDate}.png`;
-      link.href = canvas.toDataURL("image/png");
+      link.href = output.toDataURL("image/png");
       link.click();
       setMessage("Скріншот карти збережено у PNG.");
     } catch (error) {
       console.error("Map screenshot failed", error);
-      setMessage("Не вдалося створити скріншот карти. Спробуйте ще раз після повного завантаження карти.");
+      setMessage("Не вдалося створити PNG. Можливо, картографічна підкладка забороняє експорт зображень.");
     } finally {
       setCapturingMap(false);
     }
