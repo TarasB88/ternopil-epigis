@@ -296,15 +296,17 @@ export default function App() {
     if (!Number.isFinite(meters) || meters <= 0 || meters > 100000) { setLayerMessage("Вкажи відстань від 1 до 100 000 метрів."); return; }
     try {
       const result = turfBuffer(source.data, meters / 1000, { units: "kilometers", steps: 32 });
-      if (!result || !result.features.length) { setLayerMessage("Не вдалося побудувати буфер для вибраного шару."); return; }
+      if (!result) { setLayerMessage("Не вдалося побудувати буфер для вибраного шару."); return; }
+      const resultFeatures = result.type === "FeatureCollection" ? result.features : [result];
+      if (!resultFeatures.length) { setLayerMessage("Не вдалося побудувати буфер для вибраного шару."); return; }
       const layer: GISLayer = {
         id: `buffer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         name: `Буфер ${meters} м — ${source.name}`,
-        category: "Буферні зони", visible: true, data: result,
+        category: "Буферні зони", visible: true, data: { type: "FeatureCollection", features: resultFeatures },
         source: `Буферизація шару «${source.name}»`, importedAt: new Date().toISOString()
       };
       setGisLayers((current) => [...current, layer]);
-      setLayerMessage(`Побудовано буфер ${meters} м для ${result.features.length} об'єктів шару «${source.name}».`);
+      setLayerMessage(`Побудовано буфер ${meters} м для ${resultFeatures.length} об'єктів шару «${source.name}».`);
     } catch {
       setLayerMessage("Помилка буферизації. Перевір геометрії у вихідному GeoJSON.");
     }
