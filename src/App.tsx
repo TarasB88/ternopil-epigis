@@ -5,6 +5,7 @@ import { booleanIntersects } from "@turf/boolean-intersects";
 import L from "leaflet";
 import { Activity, AlertTriangle, CalendarDays, ChevronDown, Download, FileSpreadsheet, Filter, Layers3, LocateFixed, MapPin, Pencil, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
 import * as XLSX from "xlsx";
+import { REGISTRIES } from "./domain/registries";
 
 type GISLayer = { id: string; name: string; category: string; visible: boolean; data: any; source: string; importedAt: string; };
 
@@ -138,6 +139,7 @@ export default function App() {
     try { const saved = localStorage.getItem("ternopil-epigis-layers-v1"); return saved ? JSON.parse(saved) as GISLayer[] : []; } catch { return []; }
   });
   const [layerMessage, setLayerMessage] = useState("");
+  const [activeRegistryId, setActiveRegistryId] = useState("healthcare");
   const [fitLayerId, setFitLayerId] = useState("");
   const [intersectionResultLayerId, setIntersectionResultLayerId] = useState("");
   const [drawMode, setDrawMode] = useState<DrawMode>("none");
@@ -234,7 +236,7 @@ export default function App() {
       const layer: GISLayer = {
         id: `layer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         name: file.name.replace(/\.(geojson|json)$/i, ""),
-        category: "Імпортовані дані",
+        category: REGISTRIES.find((registry) => registry.id === activeRegistryId)?.label ?? "Імпортовані дані",
         visible: true,
         data: { type: "FeatureCollection", features: supported },
         source: file.name,
@@ -443,6 +445,12 @@ export default function App() {
             <div className="legend-title"><Layers3 size={15} /> Умовні позначення</div>
             <div className="legend-row"><span className="legend-dot confirmed" /> Підтверджений випадок</div>
             <div className="legend-row"><span className="legend-dot investigating" /> Розслідується</div>
+            <div className="sidebar-divider" />
+            <div className="legend-title"><Layers3 size={15} /> Предметні реєстри</div>
+            <label className="field-label">Тип реєстру для наступного GeoJSON-імпорту</label>
+            <div className="select-wrap"><select value={activeRegistryId} onChange={(event) => setActiveRegistryId(event.target.value)}>{REGISTRIES.map((registry) => <option key={registry.id} value={registry.id}>{registry.label}</option>)}</select><ChevronDown size={15} /></div>
+            <p className="layer-empty">{REGISTRIES.find((registry) => registry.id === activeRegistryId)?.description}</p>
+            <div className="registry-catalog">{REGISTRIES.map((registry) => <div className="registry-catalog-item" key={registry.id}><strong>{registry.label}</strong><span>{registry.fields.length} атрибутів · {registry.geometry === "mixed" ? "різні геометрії" : registry.geometry}</span></div>)}</div>
             <div className="sidebar-divider" />
             <div className="legend-title"><Layers3 size={15} /> Географічні шари <span className="layer-count">{gisLayers.length}</span></div>
             <button className="button button-light layer-import-button" onClick={() => layerFileRef.current?.click()}><Upload size={14} /> Додати GeoJSON</button>
