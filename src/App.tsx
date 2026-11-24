@@ -227,7 +227,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${layer.name.replace(/[^\\p{L}\\p{N}_-]+/gu, "_") || "gis-layer"}.geojson`;
+    link.download = `${layer.name.replace(/[^\p{L}\p{N}_-]+/gu, "_") || "gis-layer"}.geojson`;
     link.click();
     URL.revokeObjectURL(url);
   };
