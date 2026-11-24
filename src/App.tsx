@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CircleMarker, GeoJSON, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
+import { CircleMarker, GeoJSON, MapContainer, Polygon, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
+import { buffer as turfBuffer } from "@turf/buffer";
 import L from "leaflet";
 import { Activity, AlertTriangle, CalendarDays, ChevronDown, Download, FileSpreadsheet, Filter, Layers3, MapPin, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -43,6 +44,27 @@ function FitToCases({ cases }: { cases: CaseRecord[] }) {
     map.setView([cases[0].latitude, cases[0].longitude], 8);
     first.current = false;
   }
+  return null;
+}
+
+
+type DrawMode = "none" | "point" | "line" | "polygon";
+
+function DrawController({ mode, onMapClick }: { mode: DrawMode; onMapClick: (lat: number, lng: number) => void }) {
+  const map = useMap();
+  useEffect(() => {
+    if (mode === "none") {
+      map.getContainer().style.cursor = "";
+      return;
+    }
+    map.getContainer().style.cursor = "crosshair";
+    const handleClick = (event: L.LeafletMouseEvent) => onMapClick(event.latlng.lat, event.latlng.lng);
+    map.on("click", handleClick);
+    return () => {
+      map.off("click", handleClick);
+      map.getContainer().style.cursor = "";
+    };
+  }, [map, mode, onMapClick]);
   return null;
 }
 
@@ -93,6 +115,10 @@ export default function App() {
     try { const saved = localStorage.getItem("ternopil-epigis-layers-v1"); return saved ? JSON.parse(saved) as GISLayer[] : []; } catch { return []; }
   });
   const [layerMessage, setLayerMessage] = useState("");
+  const [drawMode, setDrawMode] = useState<DrawMode>("none");
+  const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
+  const [bufferLayerId, setBufferLayerId] = useState("");
+  const [bufferMeters, setBufferMeters] = useState("500");
   const layerFileRef = useRef<HTMLInputElement>(null);
   const [hromadaBoundaries, setHromadaBoundaries] = useState<any>(null);
   const [disease, setDisease] = useState("Усі нозології");
@@ -197,6 +223,68 @@ export default function App() {
   const toggleLayer = (id: string) => setGisLayers((current) => current.map((layer) => layer.id === id ? { ...layer, visible: !layer.visible } : layer));
   const removeLayer = (id: string) => setGisLayers((current) => current.filter((layer) => layer.id !== id));
 
+
+  const addMapFeature = (geometry: any, name: string, category: string) => {
+    const feature = { type: "Feature", properties: { name, category, createdAt: new Date().toISOString(), source: "Створено на карті" }, geometry };
+    const layer: GISLayer = {
+      id: `draw-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name, category, visible: true,
+      data: { type: "FeatureCollection", features: [feature] },
+      source: "Ручне креслення на карті", importedAt: new Date().toISOString()
+    };
+    setGisLayers((current) => [...current, layer]);
+    setLayerMessage(`Створено шар «${name}».`);
+  };
+
+  const handleMapDrawClick = (lat: number, lng: number) => {
+    if (drawMode === "point") {
+      addMapFeature({ type: "Point", coordinates: [lng, lat] }, "Нова точка", "Ручні об'єкти");
+      setDrawMode("none");
+      return;
+    }
+    if (drawMode === "line" || drawMode === "polygon") {
+      setDrawPoints((current) => [...current, [lat, lng]]);
+    }
+  };
+
+  const finishDrawing = () => {
+    if (drawMode === "line" && drawPoints.length >= 2) {
+      addMapFeature({ type: "LineString", coordinates: drawPoints.map(([lat, lng]) => [lng, lat]) }, "Нова лінія", "Ручні об'єкти");
+    } else if (drawMode === "polygon" && drawPoints.length >= 3) {
+      const ring = drawPoints.map(([lat, lng]) => [lng, lat]);
+      ring.push(ring[0]);
+      addMapFeature({ type: "Polygon", coordinates: [ring] }, "Новий полігон", "Ручні об'єкти");
+    } else {
+      setLayerMessage("Для лінії потрібно щонайменше 2 вершини, для полігона — 3.");
+      return;
+    }
+    setDrawPoints([]);
+    setDrawMode("none");
+  };
+
+  const cancelDrawing = () => { setDrawPoints([]); setDrawMode("none"); };
+
+  const createBuffer = () => {
+    const source = gisLayers.find((layer) => layer.id === bufferLayerId);
+    const meters = Number(bufferMeters);
+    if (!source) { setLayerMessage("Спочатку вибери шар для буферизації."); return; }
+    if (!Number.isFinite(meters) || meters <= 0 || meters > 100000) { setLayerMessage("Вкажи відстань від 1 до 100 000 метрів."); return; }
+    try {
+      const result = turfBuffer(source.data, meters / 1000, { units: "kilometers", steps: 32 });
+      if (!result || !result.features.length) { setLayerMessage("Не вдалося побудувати буфер для вибраного шару."); return; }
+      const layer: GISLayer = {
+        id: `buffer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name: `Буфер ${meters} м — ${source.name}`,
+        category: "Буферні зони", visible: true, data: result,
+        source: `Буферизація шару «${source.name}»`, importedAt: new Date().toISOString()
+      };
+      setGisLayers((current) => [...current, layer]);
+      setLayerMessage(`Побудовано буфер ${meters} м для ${result.features.length} об'єктів шару «${source.name}».`);
+    } catch {
+      setLayerMessage("Помилка буферизації. Перевір геометрії у вихідному GeoJSON.");
+    }
+  };
+
   const exportCsv = () => {
     const header = TEMPLATE_HEADERS.join(",");
     const rows = filtered.map((item) => TEMPLATE_HEADERS.map((key) => {
@@ -273,6 +361,28 @@ export default function App() {
                 <span className="layer-meta">{layer.data.features.length} об'єктів</span>
                 <button className="layer-remove" title="Видалити шар" aria-label={`Видалити шар ${layer.name}`} onClick={() => removeLayer(layer.id)}><X size={13} /></button>
               </div>)}</div>}
+
+            <div className="sidebar-divider" />
+            <div className="legend-title"><MapPin size={15} /> Креслення на карті</div>
+            <div className="draw-tools">
+              <button className={drawMode === "point" ? "draw-tool active" : "draw-tool"} onClick={() => { setDrawPoints([]); setDrawMode(drawMode === "point" ? "none" : "point"); }}>Точка</button>
+              <button className={drawMode === "line" ? "draw-tool active" : "draw-tool"} onClick={() => { setDrawPoints([]); setDrawMode(drawMode === "line" ? "none" : "line"); }}>Лінія</button>
+              <button className={drawMode === "polygon" ? "draw-tool active" : "draw-tool"} onClick={() => { setDrawPoints([]); setDrawMode(drawMode === "polygon" ? "none" : "polygon"); }}>Полігон</button>
+            </div>
+            {drawMode !== "none" && <div className="draw-status">
+              <span>{drawMode === "point" ? "Клацни на карті, щоб поставити точку." : `Познач вершини на карті. Додано: ${drawPoints.length}.`}</span>
+              {drawMode !== "point" && <button className="text-button" onClick={finishDrawing}>Завершити</button>}
+              <button className="text-button" onClick={cancelDrawing}>Скасувати</button>
+            </div>}
+            {(drawMode === "line" && drawPoints.length > 0) && <Polyline positions={drawPoints} pathOptions={{ color: "#d97706", dashArray: "5 5" }} />}
+            {(drawMode === "polygon" && drawPoints.length > 0) && <Polygon positions={drawPoints} pathOptions={{ color: "#d97706", fillOpacity: 0.12, dashArray: "5 5" }} />}
+            <div className="sidebar-divider" />
+            <div className="legend-title"><Layers3 size={15} /> Буферний аналіз</div>
+            <label className="field-label">Вихідний шар</label>
+            <div className="select-wrap"><select value={bufferLayerId} onChange={(event) => setBufferLayerId(event.target.value)}><option value="">Вибрати шар…</option>{gisLayers.map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}</select><ChevronDown size={15} /></div>
+            <label className="field-label">Радіус буфера, метрів</label>
+            <input className="buffer-input" type="number" min="1" max="100000" value={bufferMeters} onChange={(event) => setBufferMeters(event.target.value)} />
+            <button className="button button-light layer-import-button" disabled={!gisLayers.length || !bufferLayerId} onClick={createBuffer}>Побудувати буфер</button>
             <div className="privacy-note"><ShieldCheck size={16} /><span>Шари зберігаються локально у браузері. Вони не передаються на сервер і можуть бути недоступні на іншому пристрої.</span></div>
           </aside>
 
@@ -280,6 +390,7 @@ export default function App() {
             <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{filtered.length} записів на карті</span></div><div className="top-actions"><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span></div></div>
             <div className="map-wrap">
               <MapContainer center={[49.45, 25.55]} zoom={8} scrollWheelZoom preferCanvas={true} className="leaflet-map">
+                <DrawController mode={drawMode} onMapClick={handleMapDrawClick} />
                 <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" crossOrigin="anonymous" />
                 {hromadaBoundaries && <GeoJSON
                   data={hromadaBoundaries}
