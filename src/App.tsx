@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleMarker, GeoJSON, MapContainer, Polygon, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
 import { buffer as turfBuffer } from "@turf/buffer";
+import { booleanIntersects } from "@turf/boolean-intersects";
 import L from "leaflet";
 import { Activity, AlertTriangle, CalendarDays, ChevronDown, Download, FileSpreadsheet, Filter, Layers3, MapPin, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -119,6 +120,8 @@ export default function App() {
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
   const [bufferLayerId, setBufferLayerId] = useState("");
   const [bufferMeters, setBufferMeters] = useState("500");
+  const [intersectionZoneId, setIntersectionZoneId] = useState("");
+  const [intersectionTargetId, setIntersectionTargetId] = useState("");
   const layerFileRef = useRef<HTMLInputElement>(null);
   const [hromadaBoundaries, setHromadaBoundaries] = useState<any>(null);
   const [disease, setDisease] = useState("Усі нозології");
@@ -295,6 +298,50 @@ export default function App() {
     }
   };
 
+  const runIntersection = () => {
+    const zoneLayer = gisLayers.find((layer) => layer.id === intersectionZoneId);
+    const targetLayer = gisLayers.find((layer) => layer.id === intersectionTargetId);
+    if (!zoneLayer || !targetLayer) { setLayerMessage("Вибери шар зоною аналізу та шар об'єктів для перевірки."); return; }
+    if (zoneLayer.id === targetLayer.id) { setLayerMessage("Для аналізу потрібно вибрати два різні шари."); return; }
+    const zones = zoneLayer.data?.features ?? [];
+    const targets = targetLayer.data?.features ?? [];
+    if (!zones.length || !targets.length) { setLayerMessage("Один із вибраних шарів не містить об'єктів."); return; }
+    try {
+      const matches = targets.flatMap((feature: any, index: number) => {
+        if (!feature?.geometry) return [];
+        const intersectingZones = zones.filter((zone: any) => zone?.geometry && booleanIntersects(feature, zone));
+        if (!intersectingZones.length) return [];
+        return [{
+          ...feature,
+          properties: {
+            ...(feature.properties ?? {}),
+            _epigis_source_layer: targetLayer.name,
+            _epigis_intersection_count: intersectingZones.length,
+            _epigis_zone_layer: zoneLayer.name,
+            _epigis_source_index: index
+          }
+        }];
+      });
+      if (!matches.length) {
+        setLayerMessage(`Перетинів не виявлено: ${targets.length} об'єктів перевірено щодо шару «${zoneLayer.name}».`);
+        return;
+      }
+      const resultLayer: GISLayer = {
+        id: `intersection-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name: `Перетини: ${targetLayer.name} / ${zoneLayer.name}`,
+        category: "Результати просторового аналізу",
+        visible: true,
+        data: { type: "FeatureCollection", features: matches },
+        source: `Просторовий перетин «${targetLayer.name}» із «${zoneLayer.name}»`,
+        importedAt: new Date().toISOString()
+      };
+      setGisLayers((current) => [...current, resultLayer]);
+      setLayerMessage(`Знайдено ${matches.length} об'єктів із перетином із зоною. Перевірено об'єктів: ${targets.length}; геометрій зони: ${zones.length}. Результат додано окремим шаром.`);
+    } catch {
+      setLayerMessage("Не вдалося виконати перетин. Перевір валідність геометрій у двох GeoJSON-шарах.");
+    }
+  };
+
   const exportCsv = () => {
     const header = TEMPLATE_HEADERS.join(",");
     const rows = filtered.map((item) => TEMPLATE_HEADERS.map((key) => {
@@ -392,6 +439,14 @@ export default function App() {
             <label className="field-label">Радіус буфера, метрів</label>
             <input className="buffer-input" type="number" min="1" max="100000" value={bufferMeters} onChange={(event) => setBufferMeters(event.target.value)} />
             <button className="button button-light layer-import-button" disabled={!gisLayers.length || !bufferLayerId} onClick={createBuffer}>Побудувати буфер</button>
+            <div className="sidebar-divider" />
+            <div className="legend-title"><Layers3 size={15} /> Просторові перетини</div>
+            <label className="field-label">Зона аналізу (наприклад, буфер)</label>
+            <div className="select-wrap"><select value={intersectionZoneId} onChange={(event) => setIntersectionZoneId(event.target.value)}><option value="">Вибрати шар зоною…</option>{gisLayers.map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}</select><ChevronDown size={15} /></div>
+            <label className="field-label">Шар об'єктів для перевірки</label>
+            <div className="select-wrap"><select value={intersectionTargetId} onChange={(event) => setIntersectionTargetId(event.target.value)}><option value="">Вибрати шар об'єктів…</option>{gisLayers.map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}</select><ChevronDown size={15} /></div>
+            <button className="button button-light layer-import-button" disabled={!intersectionZoneId || !intersectionTargetId} onClick={runIntersection}>Знайти об'єкти в зоні</button>
+            <p className="layer-empty">Перевіряється геометричний перетин об'єктів двох шарів. Результат додається окремим шаром; це не є автоматичним епідеміологічним висновком.</p>
             <div className="privacy-note"><ShieldCheck size={16} /><span>Шари зберігаються локально у браузері. Вони не передаються на сервер і можуть бути недоступні на іншому пристрої.</span></div>
           </aside>
 
