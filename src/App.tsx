@@ -374,8 +374,6 @@ export default function App() {
               {drawMode !== "point" && <button className="text-button" onClick={finishDrawing}>Завершити</button>}
               <button className="text-button" onClick={cancelDrawing}>Скасувати</button>
             </div>}
-            {(drawMode === "line" && drawPoints.length > 0) && <Polyline positions={drawPoints} pathOptions={{ color: "#d97706", dashArray: "5 5" }} />}
-            {(drawMode === "polygon" && drawPoints.length > 0) && <Polygon positions={drawPoints} pathOptions={{ color: "#d97706", fillOpacity: 0.12, dashArray: "5 5" }} />}
             <div className="sidebar-divider" />
             <div className="legend-title"><Layers3 size={15} /> Буферний аналіз</div>
             <label className="field-label">Вихідний шар</label>
@@ -391,6 +389,9 @@ export default function App() {
             <div className="map-wrap">
               <MapContainer center={[49.45, 25.55]} zoom={8} scrollWheelZoom preferCanvas={true} className="leaflet-map">
                 <DrawController mode={drawMode} onMapClick={handleMapDrawClick} />
+                {drawMode === "line" && drawPoints.length > 0 && <Polyline positions={drawPoints} pathOptions={{ color: "#d97706", dashArray: "5 5" }} />}
+                {drawMode === "polygon" && drawPoints.length > 0 && <Polygon positions={drawPoints} pathOptions={{ color: "#d97706", fillOpacity: 0.12, dashArray: "5 5" }} />}
+
                 <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" crossOrigin="anonymous" />
                 {hromadaBoundaries && <GeoJSON
                   data={hromadaBoundaries}
