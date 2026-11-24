@@ -126,6 +126,7 @@ export default function App() {
     try { const saved = localStorage.getItem("ternopil-epigis-layers-v1"); return saved ? JSON.parse(saved) as GISLayer[] : []; } catch { return []; }
   });
   const [layerMessage, setLayerMessage] = useState("");\n  const [fitLayerId, setFitLayerId] = useState("");
+  const [intersectionResultLayerId, setIntersectionResultLayerId] = useState("");
   const [drawMode, setDrawMode] = useState<DrawMode>("none");
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
   const [bufferLayerId, setBufferLayerId] = useState("");
@@ -350,6 +351,7 @@ export default function App() {
         importedAt: new Date().toISOString()
       };
       setGisLayers((current) => [...current, resultLayer]);
+      setIntersectionResultLayerId(resultLayer.id);
       setLayerMessage(`Знайдено ${matches.length} об'єктів із перетином із зоною. Перевірено об'єктів: ${targets.length}; геометрій зони: ${zones.length}. Результат додано окремим шаром.`);
     } catch {
       setLayerMessage("Не вдалося виконати перетин. Перевір валідність геометрій у двох GeoJSON-шарах.");
@@ -524,6 +526,23 @@ export default function App() {
               {filtered.length === 0 && <div className="empty-map">За вибраними параметрами записів не знайдено.</div>}
               <div className="map-disclaimer">Координати демонстраційних записів умовні.</div>
             </div>
+            {intersectionResultLayerId && gisLayers.some((layer) => layer.id === intersectionResultLayerId) && (() => {
+              const resultLayer = gisLayers.find((layer) => layer.id === intersectionResultLayerId)!;
+              const features = resultLayer.data?.features ?? [];
+              return <section className="spatial-results">
+                <div className="table-heading"><div><h2>Результати просторового аналізу</h2><p>{resultLayer.name} · {features.length} об’єктів</p></div><button className="text-button" onClick={() => setIntersectionResultLayerId("")}>Закрити таблицю</button></div>
+                <div className="table-scroll"><table><thead><tr><th>№</th><th>Об’єкт</th><th>Тип геометрії</th><th>Кількість перетинів</th><th>Атрибути</th></tr></thead><tbody>
+                  {features.map((feature: any, index: number) => {
+                    const properties = feature?.properties ?? {};
+                    const label = properties.name ?? properties.NAME ?? properties.НАЗВА ?? properties.id ?? `Об’єкт ${index + 1}`;
+                    const attributes = Object.entries(properties).filter(([key]) => !key.startsWith("_epigis_")).slice(0, 5).map(([key, value]) => `${key}: ${typeof value === "object" ? JSON.stringify(value) : String(value ?? "")}`).join(" · ");
+                    return <tr key={`${index}-${String(label)}`}><td>{index + 1}</td><td>{String(label)}</td><td>{feature?.geometry?.type ?? "—"}</td><td>{Number(properties._epigis_intersection_count ?? 0)}</td><td>{attributes || "Немає атрибутів"}</td></tr>;
+                  })}
+                </tbody></table></div>
+                <p className="layer-empty">Таблиця відображає геометричні перетини, а не підтверджений епідеміологічний зв’язок. Для повного набору атрибутів експортуй GeoJSON відповідного шару.</p>
+              </section>;
+            })()}
+
             <div className="table-heading"><div><h2>Реєстр випадків</h2><p>Натисни на рядок, щоб переглянути деталі</p></div><span>{filtered.length} записів</span></div>
             <div className="table-scroll"><table><thead><tr><th>ID</th><th>Нозологія</th><th>Дата</th><th>Громада / НП</th><th>Статус</th></tr></thead><tbody>
               {filtered.slice(0, 100).map((item) => <tr key={item.id} className={selected?.id === item.id ? "selected-row" : ""} onClick={() => setSelected(item)}><td className="case-id">{item.id}</td><td>{item.disease}</td><td>{item.date}</td><td>{item.hromada}{item.settlement ? <small>{item.settlement}</small> : null}</td><td><span className={item.status === "Підтверджено" ? "status status-confirmed" : "status status-review"}>{item.status}</span></td></tr>)}
