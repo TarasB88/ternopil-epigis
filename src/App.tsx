@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CircleMarker, GeoJSON, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
-import { Activity, AlertTriangle, CalendarDays, ChevronDown, Download, FileSpreadsheet, Filter, Layers3, MapPin, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
+import { CircleMarker, GeoJSON, MapContainer, Polygon, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
+import { buffer as turfBuffer } from "@turf/buffer";
+import { booleanIntersects } from "@turf/boolean-intersects";
+import L from "leaflet";
+import { Activity, AlertTriangle, CalendarDays, ChevronDown, Download, FileSpreadsheet, Filter, Layers3, LocateFixed, MapPin, Pencil, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
 import * as XLSX from "xlsx";
+import { REGISTRIES } from "./domain/registries";
+
+type GISLayer = { id: string; name: string; category: string; visible: boolean; data: any; source: string; importedAt: string; };
+type RegistryRecord = { id: string; registryId: string; values: Record<string, string | number>; latitude: number; longitude: number; createdAt: string; };
 
 type CaseRecord = {
   id: string;
@@ -40,6 +47,39 @@ function FitToCases({ cases }: { cases: CaseRecord[] }) {
     map.setView([cases[0].latitude, cases[0].longitude], 8);
     first.current = false;
   }
+  return null;
+}
+
+
+type DrawMode = "none" | "point" | "line" | "polygon";
+
+function FitToLayer({ layer }: { layer: GISLayer | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!layer?.data) return;
+    try {
+      const bounds = L.geoJSON(layer.data).getBounds();
+      if (bounds.isValid()) map.fitBounds(bounds, { padding: [28, 28], maxZoom: 14 });
+    } catch { /* Некоректна геометрія не повинна ламати карту. */ }
+  }, [map, layer]);
+  return null;
+}
+
+function DrawController({ mode, onMapClick }: { mode: DrawMode; onMapClick: (lat: number, lng: number) => void }) {
+  const map = useMap();
+  useEffect(() => {
+    if (mode === "none") {
+      map.getContainer().style.cursor = "";
+      return;
+    }
+    map.getContainer().style.cursor = "crosshair";
+    const handleClick = (event: L.LeafletMouseEvent) => onMapClick(event.latlng.lat, event.latlng.lng);
+    map.on("click", handleClick);
+    return () => {
+      map.off("click", handleClick);
+      map.getContainer().style.cursor = "";
+    };
+  }, [map, mode, onMapClick]);
   return null;
 }
 
@@ -84,8 +124,36 @@ function toCase(row: Record<string, unknown>, index: number): CaseRecord | null 
   };
 }
 
+function hasValidGeoJSONCoordinates(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length === 0) return false;
+  if (typeof value[0] === "number" && typeof value[1] === "number") {
+    const [longitude, latitude] = value;
+    return Number.isFinite(longitude) && Number.isFinite(latitude) &&
+      longitude >= -180 && longitude <= 180 && latitude >= -90 && latitude <= 90;
+  }
+  return value.every(hasValidGeoJSONCoordinates);
+}
+
 export default function App() {
   const [cases, setCases] = useState<CaseRecord[]>(DEMO_CASES);
+  const [gisLayers, setGisLayers] = useState<GISLayer[]>(() => {
+    try { const saved = localStorage.getItem("ternopil-epigis-layers-v1"); return saved ? JSON.parse(saved) as GISLayer[] : []; } catch { return []; }
+  });
+  const [layerMessage, setLayerMessage] = useState("");
+  const [activeRegistryId, setActiveRegistryId] = useState("healthcare");
+  const [registryRecords, setRegistryRecords] = useState<RegistryRecord[]>(() => { try { const saved = localStorage.getItem("ternopil-epigis-registry-records-v1"); return saved ? JSON.parse(saved) as RegistryRecord[] : []; } catch { return []; } });
+  const [registryFormOpen, setRegistryFormOpen] = useState(false);
+  const [editingRegistryRecordId, setEditingRegistryRecordId] = useState("");
+  const [registryFormValues, setRegistryFormValues] = useState<Record<string, string>>({});
+  const [fitLayerId, setFitLayerId] = useState("");
+  const [intersectionResultLayerId, setIntersectionResultLayerId] = useState("");
+  const [drawMode, setDrawMode] = useState<DrawMode>("none");
+  const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
+  const [bufferLayerId, setBufferLayerId] = useState("");
+  const [bufferMeters, setBufferMeters] = useState("500");
+  const [intersectionZoneId, setIntersectionZoneId] = useState("");
+  const [intersectionTargetId, setIntersectionTargetId] = useState("");
+  const layerFileRef = useRef<HTMLInputElement>(null);
   const [hromadaBoundaries, setHromadaBoundaries] = useState<any>(null);
   const [disease, setDisease] = useState("Усі нозології");
   const [hromada, setHromada] = useState("Усі громади");
@@ -97,6 +165,10 @@ export default function App() {
   const [showUpload, setShowUpload] = useState(false);
   const [onlyConfirmed, setOnlyConfirmed] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    try { localStorage.setItem("ternopil-epigis-registry-records-v1", JSON.stringify(registryRecords)); } catch { setLayerMessage("Не вдалося зберегти реєстр: сховище браузера переповнене або недоступне."); }
+  }, [registryRecords]);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,6 +221,189 @@ export default function App() {
       setMessage(`Імпортовано ${parsed.length} записів із ${rows.length}. Відхилено: ${rows.length - parsed.length}.`);
     } catch {
       setMessage("Не вдалося прочитати файл. Спробуй XLSX, XLS або CSV.");
+    }
+  };
+
+  const importGeoJSON = async (file?: File) => {
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      const data = parsed?.type === "FeatureCollection" ? parsed :
+        parsed?.type === "Feature" ? { type: "FeatureCollection", features: [parsed] } : null;
+      if (!data || !Array.isArray(data.features) || !data.features.length) {
+        setLayerMessage("Файл має містити GeoJSON Feature або FeatureCollection з геометріями.");
+        return;
+      }
+      const supported = data.features.filter((feature: any) =>
+        feature?.type === "Feature" && feature.geometry &&
+        ["Point", "MultiPoint", "LineString", "MultiLineString", "Polygon", "MultiPolygon"].includes(feature.geometry.type) &&
+        hasValidGeoJSONCoordinates(feature.geometry.coordinates));
+      if (!supported.length) {
+        setLayerMessage("У файлі не знайдено підтримуваних геометрій: точки, лінії або полігони.");
+        return;
+      }
+      const layer: GISLayer = {
+        id: `layer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name: file.name.replace(/\.(geojson|json)$/i, ""),
+        category: REGISTRIES.find((registry) => registry.id === activeRegistryId)?.label ?? "Імпортовані дані",
+        visible: true,
+        data: { type: "FeatureCollection", features: supported },
+        source: file.name,
+        importedAt: new Date().toISOString()
+      };
+      setGisLayers((current) => [...current, layer]);
+      setLayerMessage(`Додано шар «${layer.name}»: ${supported.length} об'єктів. Відхилено некоректних або непідтримуваних: ${data.features.length - supported.length}.`);
+    } catch {
+      setLayerMessage("Не вдалося прочитати GeoJSON. Перевір структуру та синтаксис JSON.");
+    } finally {
+      if (layerFileRef.current) layerFileRef.current.value = "";
+    }
+  };
+
+  const activeRegistry = REGISTRIES.find((registry) => registry.id === activeRegistryId) ?? REGISTRIES[0];
+  const activeRegistryRecords = registryRecords.filter((record) => record.registryId === activeRegistryId);
+  const openNewRegistryRecord = () => { setEditingRegistryRecordId(""); setRegistryFormValues({ updated_at: new Date().toISOString().slice(0, 10) }); setRegistryFormOpen(true); };
+  const openEditRegistryRecord = (record: RegistryRecord) => { setEditingRegistryRecordId(record.id); setRegistryFormValues({ ...Object.fromEntries(Object.entries(record.values).map(([key, value]) => [key, String(value)])), latitude: String(record.latitude), longitude: String(record.longitude) }); setRegistryFormOpen(true); };
+  const saveRegistryRecord = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const latitude = Number(registryFormValues.latitude); const longitude = Number(registryFormValues.longitude);
+    if (!registryFormValues.name?.trim() || !Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) { setLayerMessage("Потрібні назва об'єкта та коректні координати."); return; }
+    const values: Record<string, string | number> = {};
+    activeRegistry.fields.forEach((field) => { const value = registryFormValues[field.key]?.trim() ?? ""; if (value !== "") values[field.key] = field.type === "number" ? Number(value) : value; });
+    if (activeRegistry.fields.some((field) => field.required && (values[field.key] === undefined || values[field.key] === ""))) { setLayerMessage("Заповни всі обов'язкові поля реєстру."); return; }
+    const record: RegistryRecord = { id: editingRegistryRecordId || `reg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, registryId: activeRegistryId, values, latitude, longitude, createdAt: new Date().toISOString() };
+    setRegistryRecords((current) => editingRegistryRecordId ? current.map((item) => item.id === editingRegistryRecordId ? record : item) : [...current, record]);
+    setRegistryFormOpen(false); setEditingRegistryRecordId(""); setRegistryFormValues({});
+    setLayerMessage(editingRegistryRecordId ? "Запис реєстру оновлено." : "Новий запис додано до реєстру.");
+  };
+  const deleteRegistryRecord = (id: string) => { if (!window.confirm("Видалити цей запис із локального реєстру?")) return; setRegistryRecords((current) => current.filter((record) => record.id !== id)); };
+
+  const toggleLayer = (id: string) => setGisLayers((current) => current.map((layer) => layer.id === id ? { ...layer, visible: !layer.visible } : layer));
+  const removeLayer = (id: string) => { setGisLayers((current) => current.filter((layer) => layer.id !== id)); if (fitLayerId === id) setFitLayerId(""); };
+  const renameLayer = (layer: GISLayer) => {
+    const proposed = window.prompt("Нова назва географічного шару:", layer.name);
+    const name = proposed?.trim();
+    if (!name || name === layer.name) return;
+    setGisLayers((current) => current.map((item) => item.id === layer.id ? { ...item, name } : item));
+    setLayerMessage(`Шар перейменовано на «${name}».`);
+  };
+  const exportGeoJSONLayer = (layer: GISLayer) => {
+    const blob = new Blob([JSON.stringify(layer.data, null, 2)], { type: "application/geo+json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${layer.name.replace(/[^\p{L}\p{N}_-]+/gu, "_") || "gis-layer"}.geojson`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+
+
+  const addMapFeature = (geometry: any, name: string, category: string) => {
+    const feature = { type: "Feature", properties: { name, category, createdAt: new Date().toISOString(), source: "Створено на карті" }, geometry };
+    const layer: GISLayer = {
+      id: `draw-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name, category, visible: true,
+      data: { type: "FeatureCollection", features: [feature] },
+      source: "Ручне креслення на карті", importedAt: new Date().toISOString()
+    };
+    setGisLayers((current) => [...current, layer]);
+    setLayerMessage(`Створено шар «${name}».`);
+  };
+
+  const handleMapDrawClick = (lat: number, lng: number) => {
+    if (drawMode === "point") {
+      addMapFeature({ type: "Point", coordinates: [lng, lat] }, "Нова точка", "Ручні об'єкти");
+      setDrawMode("none");
+      return;
+    }
+    if (drawMode === "line" || drawMode === "polygon") {
+      setDrawPoints((current) => [...current, [lat, lng]]);
+    }
+  };
+
+  const finishDrawing = () => {
+    if (drawMode === "line" && drawPoints.length >= 2) {
+      addMapFeature({ type: "LineString", coordinates: drawPoints.map(([lat, lng]) => [lng, lat]) }, "Нова лінія", "Ручні об'єкти");
+    } else if (drawMode === "polygon" && drawPoints.length >= 3) {
+      const ring = drawPoints.map(([lat, lng]) => [lng, lat]);
+      ring.push(ring[0]);
+      addMapFeature({ type: "Polygon", coordinates: [ring] }, "Новий полігон", "Ручні об'єкти");
+    } else {
+      setLayerMessage("Для лінії потрібно щонайменше 2 вершини, для полігона — 3.");
+      return;
+    }
+    setDrawPoints([]);
+    setDrawMode("none");
+  };
+
+  const cancelDrawing = () => { setDrawPoints([]); setDrawMode("none"); };
+
+  const createBuffer = () => {
+    const source = gisLayers.find((layer) => layer.id === bufferLayerId);
+    const meters = Number(bufferMeters);
+    if (!source) { setLayerMessage("Спочатку вибери шар для буферизації."); return; }
+    if (!Number.isFinite(meters) || meters <= 0 || meters > 100000) { setLayerMessage("Вкажи відстань від 1 до 100 000 метрів."); return; }
+    try {
+      const result = turfBuffer(source.data, meters / 1000, { units: "kilometers", steps: 32 });
+      if (!result) { setLayerMessage("Не вдалося побудувати буфер для вибраного шару."); return; }
+      const resultFeatures = result.type === "FeatureCollection" ? result.features : [result];
+      if (!resultFeatures.length) { setLayerMessage("Не вдалося побудувати буфер для вибраного шару."); return; }
+      const layer: GISLayer = {
+        id: `buffer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name: `Буфер ${meters} м — ${source.name}`,
+        category: "Буферні зони", visible: true, data: { type: "FeatureCollection", features: resultFeatures },
+        source: `Буферизація шару «${source.name}»`, importedAt: new Date().toISOString()
+      };
+      setGisLayers((current) => [...current, layer]);
+      setLayerMessage(`Побудовано буфер ${meters} м для ${resultFeatures.length} об'єктів шару «${source.name}».`);
+    } catch {
+      setLayerMessage("Помилка буферизації. Перевір геометрії у вихідному GeoJSON.");
+    }
+  };
+
+  const runIntersection = () => {
+    const zoneLayer = gisLayers.find((layer) => layer.id === intersectionZoneId);
+    const targetLayer = gisLayers.find((layer) => layer.id === intersectionTargetId);
+    if (!zoneLayer || !targetLayer) { setLayerMessage("Вибери шар зоною аналізу та шар об'єктів для перевірки."); return; }
+    if (zoneLayer.id === targetLayer.id) { setLayerMessage("Для аналізу потрібно вибрати два різні шари."); return; }
+    const zones = zoneLayer.data?.features ?? [];
+    const targets = targetLayer.data?.features ?? [];
+    if (!zones.length || !targets.length) { setLayerMessage("Один із вибраних шарів не містить об'єктів."); return; }
+    try {
+      const matches = targets.flatMap((feature: any, index: number) => {
+        if (!feature?.geometry) return [];
+        const intersectingZones = zones.filter((zone: any) => zone?.geometry && booleanIntersects(feature, zone));
+        if (!intersectingZones.length) return [];
+        return [{
+          ...feature,
+          properties: {
+            ...(feature.properties ?? {}),
+            _epigis_source_layer: targetLayer.name,
+            _epigis_intersection_count: intersectingZones.length,
+            _epigis_zone_layer: zoneLayer.name,
+            _epigis_source_index: index
+          }
+        }];
+      });
+      if (!matches.length) {
+        setLayerMessage(`Перетинів не виявлено: ${targets.length} об'єктів перевірено щодо шару «${zoneLayer.name}».`);
+        return;
+      }
+      const resultLayer: GISLayer = {
+        id: `intersection-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name: `Перетини: ${targetLayer.name} / ${zoneLayer.name}`,
+        category: "Результати просторового аналізу",
+        visible: true,
+        data: { type: "FeatureCollection", features: matches },
+        source: `Просторовий перетин «${targetLayer.name}» із «${zoneLayer.name}»`,
+        importedAt: new Date().toISOString()
+      };
+      setGisLayers((current) => [...current, resultLayer]);
+      setIntersectionResultLayerId(resultLayer.id);
+      setLayerMessage(`Знайдено ${matches.length} об'єктів із перетином із зоною. Перевірено об'єктів: ${targets.length}; геометрій зони: ${zones.length}. Результат додано окремим шаром.`);
+    } catch {
+      setLayerMessage("Не вдалося виконати перетин. Перевір валідність геометрій у двох GeoJSON-шарах.");
     }
   };
 
@@ -217,13 +472,79 @@ export default function App() {
             <div className="legend-title"><Layers3 size={15} /> Умовні позначення</div>
             <div className="legend-row"><span className="legend-dot confirmed" /> Підтверджений випадок</div>
             <div className="legend-row"><span className="legend-dot investigating" /> Розслідується</div>
-            <div className="privacy-note"><ShieldCheck size={16} /><span>Дані обробляються у браузері. У цій версії імпорт не надсилається на сервер.</span></div>
+            <div className="sidebar-divider" />
+            <div className="legend-title"><Layers3 size={15} /> Предметні реєстри</div>
+            <label className="field-label">Тип реєстру для наступного GeoJSON-імпорту</label>
+            <div className="select-wrap"><select value={activeRegistryId} onChange={(event) => setActiveRegistryId(event.target.value)}>{REGISTRIES.map((registry) => <option key={registry.id} value={registry.id}>{registry.label}</option>)}</select><ChevronDown size={15} /></div>
+            <p className="layer-empty">{REGISTRIES.find((registry) => registry.id === activeRegistryId)?.description}</p>
+            <div className="registry-catalog">{REGISTRIES.map((registry) => <div className="registry-catalog-item" key={registry.id}><strong>{registry.label}</strong><span>{registry.fields.length} атрибутів · {registry.geometry === "mixed" ? "різні геометрії" : registry.geometry}</span></div>)}</div>
+            <div className="sidebar-divider" />
+            <div className="legend-title"><FileSpreadsheet size={15} /> Реєстр: {activeRegistry.label}</div>
+            <div className="registry-record-toolbar"><span>{activeRegistryRecords.length} записів</span><button className="button button-light" onClick={openNewRegistryRecord}>+ Додати запис</button></div>
+            {registryFormOpen && <form className="registry-form" onSubmit={saveRegistryRecord}>
+              <strong>{editingRegistryRecordId ? "Редагування запису" : "Новий запис"}</strong>
+              {activeRegistry.fields.map((field) => <label className="field-label" key={field.key}>{field.label}{field.required ? " *" : ""}
+                {field.type === "select" ? <select required={field.required} value={registryFormValues[field.key] ?? ""} onChange={(event) => setRegistryFormValues((current) => ({ ...current, [field.key]: event.target.value }))}><option value="">Вибрати…</option>{(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}</select> :
+                <input required={field.required} type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"} value={registryFormValues[field.key] ?? ""} onChange={(event) => setRegistryFormValues((current) => ({ ...current, [field.key]: event.target.value }))} />}
+              </label>)}
+              <div className="registry-coordinate-grid"><label className="field-label">Широта *<input required type="number" step="any" min="-90" max="90" value={registryFormValues.latitude ?? ""} onChange={(event) => setRegistryFormValues((current) => ({ ...current, latitude: event.target.value }))} /></label><label className="field-label">Довгота *<input required type="number" step="any" min="-180" max="180" value={registryFormValues.longitude ?? ""} onChange={(event) => setRegistryFormValues((current) => ({ ...current, longitude: event.target.value }))} /></label></div>
+              <div className="registry-form-actions"><button className="button button-primary" type="submit">Зберегти</button><button className="button button-light" type="button" onClick={() => setRegistryFormOpen(false)}>Скасувати</button></div>
+            </form>}
+            <div className="registry-record-list">{activeRegistryRecords.map((record) => <div className="registry-record" key={record.id}><div><strong>{String(record.values.name ?? record.values.object_id ?? "Об'єкт без назви")}</strong><span>{String(record.values.hromada ?? "Громаду не вказано")} · {record.latitude.toFixed(4)}, {record.longitude.toFixed(4)}</span></div><button className="layer-export" title="Редагувати запис" onClick={() => openEditRegistryRecord(record)}><Pencil size={13} /></button><button className="layer-remove" title="Видалити запис" onClick={() => deleteRegistryRecord(record.id)}><X size={13} /></button></div>)}</div>
+            <p className="layer-empty">Записи зберігаються локально в цьому браузері. Координати використовуються для відображення точок на карті. Для ліній і полігонів імпортуй GeoJSON.</p>
+            <div className="sidebar-divider" />
+            <div className="legend-title"><Layers3 size={15} /> Географічні шари <span className="layer-count">{gisLayers.length}</span></div>
+            <button className="button button-light layer-import-button" onClick={() => layerFileRef.current?.click()}><Upload size={14} /> Додати GeoJSON</button>
+            <input ref={layerFileRef} type="file" accept=".geojson,.json,application/geo+json,application/json" hidden onChange={(event) => importGeoJSON(event.target.files?.[0])} />
+            {layerMessage && <div className="layer-message">{layerMessage}</div>}
+            {gisLayers.length === 0 ? <p className="layer-empty">Поки немає власних шарів. Додай GeoJSON із точками, лініями або полігонами.</p> :
+              <div className="layer-list">{gisLayers.map((layer) => <div className="layer-item" key={layer.id}>
+                <label><input type="checkbox" checked={layer.visible} onChange={() => toggleLayer(layer.id)} /><span className="layer-name">{layer.name}</span></label>
+                <span className="layer-meta">{layer.data.features.length} об'єктів</span>
+                <button className="layer-export" title="Показати шар на карті" aria-label={`Масштабувати карту до шару ${layer.name}`} onClick={() => setFitLayerId(layer.id)}><LocateFixed size={13} /></button>
+                <button className="layer-export" title="Перейменувати шар" aria-label={`Перейменувати шар ${layer.name}`} onClick={() => renameLayer(layer)}><Pencil size={13} /></button>
+                <button className="layer-export" title="Експортувати GeoJSON" aria-label={`Експортувати шар ${layer.name}`} onClick={() => exportGeoJSONLayer(layer)}><Download size={13} /></button>
+                <button className="layer-remove" title="Видалити шар" aria-label={`Видалити шар ${layer.name}`} onClick={() => removeLayer(layer.id)}><X size={13} /></button>
+              </div>)}</div>}
+
+            <div className="sidebar-divider" />
+            <div className="legend-title"><MapPin size={15} /> Креслення на карті</div>
+            <div className="draw-tools">
+              <button className={drawMode === "point" ? "draw-tool active" : "draw-tool"} onClick={() => { setDrawPoints([]); setDrawMode(drawMode === "point" ? "none" : "point"); }}>Точка</button>
+              <button className={drawMode === "line" ? "draw-tool active" : "draw-tool"} onClick={() => { setDrawPoints([]); setDrawMode(drawMode === "line" ? "none" : "line"); }}>Лінія</button>
+              <button className={drawMode === "polygon" ? "draw-tool active" : "draw-tool"} onClick={() => { setDrawPoints([]); setDrawMode(drawMode === "polygon" ? "none" : "polygon"); }}>Полігон</button>
+            </div>
+            {drawMode !== "none" && <div className="draw-status">
+              <span>{drawMode === "point" ? "Клацни на карті, щоб поставити точку." : `Познач вершини на карті. Додано: ${drawPoints.length}.`}</span>
+              {drawMode !== "point" && <button className="text-button" onClick={finishDrawing}>Завершити</button>}
+              <button className="text-button" onClick={cancelDrawing}>Скасувати</button>
+            </div>}
+            <div className="sidebar-divider" />
+            <div className="legend-title"><Layers3 size={15} /> Буферний аналіз</div>
+            <label className="field-label">Вихідний шар</label>
+            <div className="select-wrap"><select value={bufferLayerId} onChange={(event) => setBufferLayerId(event.target.value)}><option value="">Вибрати шар…</option>{gisLayers.map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}</select><ChevronDown size={15} /></div>
+            <label className="field-label">Радіус буфера, метрів</label>
+            <input className="buffer-input" type="number" min="1" max="100000" value={bufferMeters} onChange={(event) => setBufferMeters(event.target.value)} />
+            <button className="button button-light layer-import-button" disabled={!gisLayers.length || !bufferLayerId} onClick={createBuffer}>Побудувати буфер</button>
+            <div className="sidebar-divider" />
+            <div className="legend-title"><Layers3 size={15} /> Просторові перетини</div>
+            <label className="field-label">Зона аналізу (наприклад, буфер)</label>
+            <div className="select-wrap"><select value={intersectionZoneId} onChange={(event) => setIntersectionZoneId(event.target.value)}><option value="">Вибрати шар зоною…</option>{gisLayers.map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}</select><ChevronDown size={15} /></div>
+            <label className="field-label">Шар об'єктів для перевірки</label>
+            <div className="select-wrap"><select value={intersectionTargetId} onChange={(event) => setIntersectionTargetId(event.target.value)}><option value="">Вибрати шар об'єктів…</option>{gisLayers.map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}</select><ChevronDown size={15} /></div>
+            <button className="button button-light layer-import-button" disabled={!intersectionZoneId || !intersectionTargetId} onClick={runIntersection}>Знайти об'єкти в зоні</button>
+            <p className="layer-empty">Перевіряється геометричний перетин об'єктів двох шарів. Результат додається окремим шаром; це не є автоматичним епідеміологічним висновком.</p>
+            <div className="privacy-note"><ShieldCheck size={16} /><span>Шари зберігаються локально у браузері. Вони не передаються на сервер і можуть бути недоступні на іншому пристрої.</span></div>
           </aside>
 
           <section className="map-section">
             <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{filtered.length} записів на карті</span></div><div className="top-actions"><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span></div></div>
             <div className="map-wrap">
               <MapContainer center={[49.45, 25.55]} zoom={8} scrollWheelZoom preferCanvas={true} className="leaflet-map">
+                <DrawController mode={drawMode} onMapClick={handleMapDrawClick} />
+                {drawMode === "line" && drawPoints.length > 0 && <Polyline positions={drawPoints} pathOptions={{ color: "#d97706", dashArray: "5 5" }} />}
+                {drawMode === "polygon" && drawPoints.length > 0 && <Polygon positions={drawPoints} pathOptions={{ color: "#d97706", fillOpacity: 0.12, dashArray: "5 5" }} />}
+
                 <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" crossOrigin="anonymous" />
                 {hromadaBoundaries && <GeoJSON
                   data={hromadaBoundaries}
@@ -251,12 +572,50 @@ export default function App() {
                     });
                   }}
                 />}
+                {gisLayers.filter((layer) => layer.visible).map((layer, index) => <GeoJSON
+                  key={layer.id}
+                  data={layer.data}
+                  style={() => ({
+                    color: ["#176b55", "#2563a6", "#b7791f", "#7c3aed", "#be4b49"][index % 5],
+                    weight: 2.5,
+                    opacity: 0.9,
+                    fillOpacity: 0.16
+                  })}
+                  pointToLayer={(_feature, latlng) => L.circleMarker(latlng, {
+                    radius: 5, color: ["#176b55", "#2563a6", "#b7791f", "#7c3aed", "#be4b49"][index % 5],
+                    fillColor: "#ffffff", fillOpacity: 0.9, weight: 2
+                  })}
+                  onEachFeature={(feature, layerObject) => {
+                    const properties = feature?.properties ?? {};
+                    const label = String(properties.name ?? properties.NAME ?? properties.НАЗВА ?? properties.id ?? "Об'єкт шару");
+                    layerObject.bindTooltip(label, { sticky: true });
+                  }}
+                />)}
                 <FitToCases cases={filtered} />
+                <FitToLayer layer={gisLayers.find((layer) => layer.id === fitLayerId) ?? null} />
+                {registryRecords.map((record) => <CircleMarker key={record.id} center={[record.latitude, record.longitude]} radius={6} pathOptions={{ color: "#315f9a", fillColor: "#4d83bd", fillOpacity: 0.85, weight: 1.5 }}><Popup><strong>{String(record.values.name ?? "Об’єкт реєстру")}</strong><br />{REGISTRIES.find((registry) => registry.id === record.registryId)?.label}<br />{String(record.values.hromada ?? "")}</Popup></CircleMarker>)}
                 {filtered.map((item) => <CircleMarker key={item.id} center={[item.latitude, item.longitude]} radius={selected?.id === item.id ? 10 : 7} pathOptions={{ color: item.status === "Підтверджено" ? "#126b58" : "#d28a24", fillColor: item.status === "Підтверджено" ? "#21866d" : "#e6a744", fillOpacity: 0.88, weight: selected?.id === item.id ? 3 : 1.5 }} eventHandlers={{ click: () => setSelected(item) }}><Popup><strong>{item.disease}</strong><br />{item.settlement || item.hromada}<br />{item.date}<br />{item.status}</Popup></CircleMarker>)}
               </MapContainer>
               {filtered.length === 0 && <div className="empty-map">За вибраними параметрами записів не знайдено.</div>}
               <div className="map-disclaimer">Координати демонстраційних записів умовні.</div>
             </div>
+            {intersectionResultLayerId && gisLayers.some((layer) => layer.id === intersectionResultLayerId) && (() => {
+              const resultLayer = gisLayers.find((layer) => layer.id === intersectionResultLayerId)!;
+              const features = resultLayer.data?.features ?? [];
+              return <section className="spatial-results">
+                <div className="table-heading"><div><h2>Результати просторового аналізу</h2><p>{resultLayer.name} · {features.length} об’єктів</p></div><button className="text-button" onClick={() => setIntersectionResultLayerId("")}>Закрити таблицю</button></div>
+                <div className="table-scroll"><table><thead><tr><th>№</th><th>Об’єкт</th><th>Тип геометрії</th><th>Кількість перетинів</th><th>Атрибути</th></tr></thead><tbody>
+                  {features.map((feature: any, index: number) => {
+                    const properties = feature?.properties ?? {};
+                    const label = properties.name ?? properties.NAME ?? properties.НАЗВА ?? properties.id ?? `Об’єкт ${index + 1}`;
+                    const attributes = Object.entries(properties).filter(([key]) => !key.startsWith("_epigis_")).slice(0, 5).map(([key, value]) => `${key}: ${typeof value === "object" ? JSON.stringify(value) : String(value ?? "")}`).join(" · ");
+                    return <tr key={`${index}-${String(label)}`}><td>{index + 1}</td><td>{String(label)}</td><td>{feature?.geometry?.type ?? "—"}</td><td>{Number(properties._epigis_intersection_count ?? 0)}</td><td>{attributes || "Немає атрибутів"}</td></tr>;
+                  })}
+                </tbody></table></div>
+                <p className="layer-empty">Таблиця відображає геометричні перетини, а не підтверджений епідеміологічний зв’язок. Для повного набору атрибутів експортуй GeoJSON відповідного шару.</p>
+              </section>;
+            })()}
+
             <div className="table-heading"><div><h2>Реєстр випадків</h2><p>Натисни на рядок, щоб переглянути деталі</p></div><span>{filtered.length} записів</span></div>
             <div className="table-scroll"><table><thead><tr><th>ID</th><th>Нозологія</th><th>Дата</th><th>Громада / НП</th><th>Статус</th></tr></thead><tbody>
               {filtered.slice(0, 100).map((item) => <tr key={item.id} className={selected?.id === item.id ? "selected-row" : ""} onClick={() => setSelected(item)}><td className="case-id">{item.id}</td><td>{item.disease}</td><td>{item.date}</td><td>{item.hromada}{item.settlement ? <small>{item.settlement}</small> : null}</td><td><span className={item.status === "Підтверджено" ? "status status-confirmed" : "status status-review"}>{item.status}</span></td></tr>)}
