@@ -42,3 +42,20 @@
 .registry-catalog-item{display:flex;flex-direction:column;gap:3px;padding:7px 8px;border:1px solid #e7eee9;border-radius:7px;background:#fbfdfb}
 .registry-catalog-item strong{font-size:9px;color:#385447;font-weight:700}
 .registry-catalog-item span{font-size:8px;color:#87988f}
+
+/* Registry CRUD */
+.registry-record-toolbar{display:flex;align-items:center;justify-content:space-between;gap:7px;margin:0 0 9px}
+.registry-record-toolbar>span{font-size:9px;color:#788b81}
+.registry-record-toolbar .button{font-size:9px;padding:7px 9px}
+.registry-form{border:1px solid #dce8e0;background:#f8fbf9;border-radius:8px;padding:10px;margin:8px 0 12px}
+.registry-form>strong{display:block;font-size:11px;color:#24483a;margin-bottom:8px}
+.registry-form .field-label{display:flex;flex-direction:column;align-items:stretch;gap:5px;margin:10px 0;font-size:9px}
+.registry-form input,.registry-form select{width:100%;min-width:0;border:1px solid #dce7e0;border-radius:6px;padding:8px;background:#fff;color:#30483d;font-size:10px}
+.registry-coordinate-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.registry-form-actions{display:flex;gap:7px;margin-top:10px}
+.registry-form-actions .button{flex:1;padding:8px 5px;font-size:9px}
+.registry-record-list{display:flex;flex-direction:column;gap:6px;margin:8px 0}
+.registry-record{display:grid;grid-template-columns:minmax(0,1fr) 22px 22px;align-items:center;gap:4px;border:1px solid #e8efea;border-radius:7px;padding:7px}
+.registry-record>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.registry-record strong{font-size:9px;color:#355346;overflow-wrap:anywhere}
+.registry-record span{font-size:8px;color:#83948b;overflow-wrap:anywhere}
