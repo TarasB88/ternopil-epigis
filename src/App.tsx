@@ -110,6 +110,16 @@ function toCase(row: Record<string, unknown>, index: number): CaseRecord | null 
   };
 }
 
+function hasValidGeoJSONCoordinates(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length === 0) return false;
+  if (typeof value[0] === "number" && typeof value[1] === "number") {
+    const [longitude, latitude] = value;
+    return Number.isFinite(longitude) && Number.isFinite(latitude) &&
+      longitude >= -180 && longitude <= 180 && latitude >= -90 && latitude <= 90;
+  }
+  return value.every(hasValidGeoJSONCoordinates);
+}
+
 export default function App() {
   const [cases, setCases] = useState<CaseRecord[]>(DEMO_CASES);
   const [gisLayers, setGisLayers] = useState<GISLayer[]>(() => {
@@ -200,7 +210,9 @@ export default function App() {
         return;
       }
       const supported = data.features.filter((feature: any) =>
-        feature?.geometry && ["Point", "MultiPoint", "LineString", "MultiLineString", "Polygon", "MultiPolygon"].includes(feature.geometry.type));
+        feature?.type === "Feature" && feature.geometry &&
+        ["Point", "MultiPoint", "LineString", "MultiLineString", "Polygon", "MultiPolygon"].includes(feature.geometry.type) &&
+        hasValidGeoJSONCoordinates(feature.geometry.coordinates));
       if (!supported.length) {
         setLayerMessage("У файлі не знайдено підтримуваних геометрій: точки, лінії або полігони.");
         return;
@@ -215,7 +227,7 @@ export default function App() {
         importedAt: new Date().toISOString()
       };
       setGisLayers((current) => [...current, layer]);
-      setLayerMessage(`Додано шар «${layer.name}»: ${supported.length} географічних об'єктів.`);
+      setLayerMessage(`Додано шар «${layer.name}»: ${supported.length} об'єктів. Відхилено некоректних або непідтримуваних: ${data.features.length - supported.length}.`);
     } catch {
       setLayerMessage("Не вдалося прочитати GeoJSON. Перевір структуру та синтаксис JSON.");
     } finally {
