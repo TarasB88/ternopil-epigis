@@ -171,6 +171,14 @@ export default function App() {
   }, [registryRecords]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem("ternopil-epigis-layers-v1", JSON.stringify(gisLayers));
+    } catch {
+      setLayerMessage("Не вдалося зберегти географічні шари: сховище браузера переповнене або недоступне.");
+    }
+  }, [gisLayers]);
+
+  useEffect(() => {
     let cancelled = false;
     fetch("/data/ternopil-hromadas.geojson")
       .then((response) => {
