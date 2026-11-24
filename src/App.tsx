@@ -8,6 +8,7 @@ import * as XLSX from "xlsx";
 import { REGISTRIES } from "./domain/registries";
 
 type GISLayer = { id: string; name: string; category: string; visible: boolean; data: any; source: string; importedAt: string; };
+type RegistryRecord = { id: string; registryId: string; values: Record<string, string | number>; latitude: number; longitude: number; createdAt: string; };
 
 type CaseRecord = {
   id: string;
@@ -140,6 +141,10 @@ export default function App() {
   });
   const [layerMessage, setLayerMessage] = useState("");
   const [activeRegistryId, setActiveRegistryId] = useState("healthcare");
+  const [registryRecords, setRegistryRecords] = useState<RegistryRecord[]>(() => { try { const saved = localStorage.getItem("ternopil-epigis-registry-records-v1"); return saved ? JSON.parse(saved) as RegistryRecord[] : []; } catch { return []; } });
+  const [registryFormOpen, setRegistryFormOpen] = useState(false);
+  const [editingRegistryRecordId, setEditingRegistryRecordId] = useState("");
+  const [registryFormValues, setRegistryFormValues] = useState<Record<string, string>>({});
   const [fitLayerId, setFitLayerId] = useState("");
   const [intersectionResultLayerId, setIntersectionResultLayerId] = useState("");
   const [drawMode, setDrawMode] = useState<DrawMode>("none");
@@ -160,6 +165,10 @@ export default function App() {
   const [showUpload, setShowUpload] = useState(false);
   const [onlyConfirmed, setOnlyConfirmed] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    try { localStorage.setItem("ternopil-epigis-registry-records-v1", JSON.stringify(registryRecords)); } catch { setLayerMessage("Не вдалося зберегти реєстр: сховище браузера переповнене або недоступне."); }
+  }, [registryRecords]);
 
   useEffect(() => {
     let cancelled = false;
@@ -250,6 +259,24 @@ export default function App() {
       if (layerFileRef.current) layerFileRef.current.value = "";
     }
   };
+
+  const activeRegistry = REGISTRIES.find((registry) => registry.id === activeRegistryId) ?? REGISTRIES[0];
+  const activeRegistryRecords = registryRecords.filter((record) => record.registryId === activeRegistryId);
+  const openNewRegistryRecord = () => { setEditingRegistryRecordId(""); setRegistryFormValues({ updated_at: new Date().toISOString().slice(0, 10) }); setRegistryFormOpen(true); };
+  const openEditRegistryRecord = (record: RegistryRecord) => { setEditingRegistryRecordId(record.id); setRegistryFormValues({ ...Object.fromEntries(Object.entries(record.values).map(([key, value]) => [key, String(value)])), latitude: String(record.latitude), longitude: String(record.longitude) }); setRegistryFormOpen(true); };
+  const saveRegistryRecord = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const latitude = Number(registryFormValues.latitude); const longitude = Number(registryFormValues.longitude);
+    if (!registryFormValues.name?.trim() || !Number.isFinite(latitude) || !Number.isFinite(longitude) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) { setLayerMessage("Потрібні назва об'єкта та коректні координати."); return; }
+    const values: Record<string, string | number> = {};
+    activeRegistry.fields.forEach((field) => { const value = registryFormValues[field.key]?.trim() ?? ""; if (value !== "") values[field.key] = field.type === "number" ? Number(value) : value; });
+    if (activeRegistry.fields.some((field) => field.required && (values[field.key] === undefined || values[field.key] === ""))) { setLayerMessage("Заповни всі обов'язкові поля реєстру."); return; }
+    const record: RegistryRecord = { id: editingRegistryRecordId || `reg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, registryId: activeRegistryId, values, latitude, longitude, createdAt: new Date().toISOString() };
+    setRegistryRecords((current) => editingRegistryRecordId ? current.map((item) => item.id === editingRegistryRecordId ? record : item) : [...current, record]);
+    setRegistryFormOpen(false); setEditingRegistryRecordId(""); setRegistryFormValues({});
+    setLayerMessage(editingRegistryRecordId ? "Запис реєстру оновлено." : "Новий запис додано до реєстру.");
+  };
+  const deleteRegistryRecord = (id: string) => { if (!window.confirm("Видалити цей запис із локального реєстру?")) return; setRegistryRecords((current) => current.filter((record) => record.id !== id)); };
 
   const toggleLayer = (id: string) => setGisLayers((current) => current.map((layer) => layer.id === id ? { ...layer, visible: !layer.visible } : layer));
   const removeLayer = (id: string) => { setGisLayers((current) => current.filter((layer) => layer.id !== id)); if (fitLayerId === id) setFitLayerId(""); };
@@ -452,6 +479,20 @@ export default function App() {
             <p className="layer-empty">{REGISTRIES.find((registry) => registry.id === activeRegistryId)?.description}</p>
             <div className="registry-catalog">{REGISTRIES.map((registry) => <div className="registry-catalog-item" key={registry.id}><strong>{registry.label}</strong><span>{registry.fields.length} атрибутів · {registry.geometry === "mixed" ? "різні геометрії" : registry.geometry}</span></div>)}</div>
             <div className="sidebar-divider" />
+            <div className="legend-title"><FileSpreadsheet size={15} /> Реєстр: {activeRegistry.label}</div>
+            <div className="registry-record-toolbar"><span>{activeRegistryRecords.length} записів</span><button className="button button-light" onClick={openNewRegistryRecord}>+ Додати запис</button></div>
+            {registryFormOpen && <form className="registry-form" onSubmit={saveRegistryRecord}>
+              <strong>{editingRegistryRecordId ? "Редагування запису" : "Новий запис"}</strong>
+              {activeRegistry.fields.map((field) => <label className="field-label" key={field.key}>{field.label}{field.required ? " *" : ""}
+                {field.type === "select" ? <select required={field.required} value={registryFormValues[field.key] ?? ""} onChange={(event) => setRegistryFormValues((current) => ({ ...current, [field.key]: event.target.value }))}><option value="">Вибрати…</option>{(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}</select> :
+                <input required={field.required} type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"} value={registryFormValues[field.key] ?? ""} onChange={(event) => setRegistryFormValues((current) => ({ ...current, [field.key]: event.target.value }))} />}
+              </label>)}
+              <div className="registry-coordinate-grid"><label className="field-label">Широта *<input required type="number" step="any" min="-90" max="90" value={registryFormValues.latitude ?? ""} onChange={(event) => setRegistryFormValues((current) => ({ ...current, latitude: event.target.value }))} /></label><label className="field-label">Довгота *<input required type="number" step="any" min="-180" max="180" value={registryFormValues.longitude ?? ""} onChange={(event) => setRegistryFormValues((current) => ({ ...current, longitude: event.target.value }))} /></label></div>
+              <div className="registry-form-actions"><button className="button button-primary" type="submit">Зберегти</button><button className="button button-light" type="button" onClick={() => setRegistryFormOpen(false)}>Скасувати</button></div>
+            </form>}
+            <div className="registry-record-list">{activeRegistryRecords.map((record) => <div className="registry-record" key={record.id}><div><strong>{String(record.values.name ?? record.values.object_id ?? "Об'єкт без назви")}</strong><span>{String(record.values.hromada ?? "Громаду не вказано")} · {record.latitude.toFixed(4)}, {record.longitude.toFixed(4)}</span></div><button className="layer-export" title="Редагувати запис" onClick={() => openEditRegistryRecord(record)}><Pencil size={13} /></button><button className="layer-remove" title="Видалити запис" onClick={() => deleteRegistryRecord(record.id)}><X size={13} /></button></div>)}</div>
+            <p className="layer-empty">Записи зберігаються локально в цьому браузері. Координати використовуються для відображення точок на карті. Для ліній і полігонів імпортуй GeoJSON.</p>
+            <div className="sidebar-divider" />
             <div className="legend-title"><Layers3 size={15} /> Географічні шари <span className="layer-count">{gisLayers.length}</span></div>
             <button className="button button-light layer-import-button" onClick={() => layerFileRef.current?.click()}><Upload size={14} /> Додати GeoJSON</button>
             <input ref={layerFileRef} type="file" accept=".geojson,.json,application/geo+json,application/json" hidden onChange={(event) => importGeoJSON(event.target.files?.[0])} />
@@ -552,6 +593,7 @@ export default function App() {
                 />)}
                 <FitToCases cases={filtered} />
                 <FitToLayer layer={gisLayers.find((layer) => layer.id === fitLayerId) ?? null} />
+                {registryRecords.map((record) => <CircleMarker key={record.id} center={[record.latitude, record.longitude]} radius={6} pathOptions={{ color: "#315f9a", fillColor: "#4d83bd", fillOpacity: 0.85, weight: 1.5 }}><Popup><strong>{String(record.values.name ?? "Об’єкт реєстру")}</strong><br />{REGISTRIES.find((registry) => registry.id === record.registryId)?.label}<br />{String(record.values.hromada ?? "")}</Popup></CircleMarker>)}
                 {filtered.map((item) => <CircleMarker key={item.id} center={[item.latitude, item.longitude]} radius={selected?.id === item.id ? 10 : 7} pathOptions={{ color: item.status === "Підтверджено" ? "#126b58" : "#d28a24", fillColor: item.status === "Підтверджено" ? "#21866d" : "#e6a744", fillOpacity: 0.88, weight: selected?.id === item.id ? 3 : 1.5 }} eventHandlers={{ click: () => setSelected(item) }}><Popup><strong>{item.disease}</strong><br />{item.settlement || item.hromada}<br />{item.date}<br />{item.status}</Popup></CircleMarker>)}
               </MapContainer>
               {filtered.length === 0 && <div className="empty-map">За вибраними параметрами записів не знайдено.</div>}
