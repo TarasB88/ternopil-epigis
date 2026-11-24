@@ -44,30 +44,31 @@ npm run build
 npm run preview
 ```
 
-## Розгортання на Cloudflare (рекомендовано для чинного Worker)
+## Розгортання на Cloudflare (підключення до чинного Worker)
 
-Проєкт уже має конфігурацію `wrangler.jsonc`: вона вказує Wrangler публікувати зібрану папку `dist/` як статичні assets Worker. Тому для оновлення наявного Worker `ternopil-epigis` використовуй **Workers Builds**, а не створюй окремий Pages-проєкт.
+Проєкт уже має `wrangler.jsonc` із назвою Worker `ternopil-epigis` та каталогом статичних файлів `dist/`. Щоб оновлювати саме чинний Worker `https://ternopil-epigis.burdataras.workers.dev/`, підключи репозиторій через **Workers Builds**:
 
-1. Відкрий Cloudflare Dashboard → **Workers & Pages**.
-2. Вибери **Create application** → **Workers** → **Connect to Git** (назва пунктів може дещо відрізнятися).
-3. Підключи GitHub, обери репозиторій `TarasB88/ternopil-epigis` і production-гілку `main`.
-4. У налаштуваннях збірки задай:
+1. Відкрий Cloudflare Dashboard → **Workers & Pages** → вибери наявний Worker **ternopil-epigis**.
+2. Перейди в **Settings → Builds** і натисни **Connect**.
+3. Авторизуй GitHub / Cloudflare GitHub App, якщо система попросить, і вибери репозиторій `TarasB88/ternopil-epigis`.
+4. Встанови production branch: `main`.
+5. Параметри збірки:
    - Build command: `npm run build`
    - Deploy command: `npx wrangler deploy`
    - Root directory: `/`
-   - Build system / Node.js: Node.js 20 або сумісна LTS.
-5. Переконайся, що Cloudflare використовує наявний `wrangler.jsonc`. Не створюй новий Worker з іншим ім'ям, якщо потрібно оновлювати саме чинний `ternopil-epigis`.
-6. Запусти перше розгортання. Після цього кожен push у `main` запускатиме збірку та публікацію через Cloudflare.
+6. Збережи налаштування та запусти build/deploy. Cloudflare має використовувати `wrangler.jsonc` з репозиторію.
 
-**Важливо:** GitHub Actions у цьому репозиторії наразі лише перевіряє збірку та зберігає артефакт `ternopil-epigis-dist`; він навмисно не виконує деплой із секретами API. Авторизацію GitHub/Cloudflare налаштовуєш через Cloudflare Dashboard. Після підключення Workers Builds окреме завантаження ZIP-артефакту не потрібне.
+**Критично:** ім'я Worker у Cloudflare має точно збігатися з полем `name` у `wrangler.jsonc` — `ternopil-epigis`. Підключення існуючого Worker не створює окремий Pages-сайт. Cloudflare Workers Builds за замовчуванням може автоматично створити build-токен; не потрібно передавати API-токен у GitHub Actions чи зберігати його в репозиторії.
 
-### Альтернатива: Cloudflare Pages (окремий сайт)
+Після успішного першого розгортання кожен новий push у `main` автоматично запускатиме збірку та деплой на цей Worker.
 
-Якщо потрібен саме окремий Pages-проєкт, створи **Pages → Connect to Git**, вибери цей репозиторій, задай Build command `npm run build` і Build output directory `dist`. Це створить Pages-сайт окремо від чинного Worker; його домен і маршрути потрібно буде налаштувати окремо.
+### GitHub Actions у цьому репозиторії
 
-### Ручне завантаження з GitHub Actions
+Workflow **Build EpiGIS release artifact** виконує перевірку `npm run build` і зберігає артефакт `ternopil-epigis-dist`. Він не публікує Worker самостійно: це робить Workers Builds після підключення GitHub у Cloudflare Dashboard. Артефакт потрібен як резервна збірка, а не як обов'язковий крок деплою.
 
-Якщо не підключати Git до Cloudflare, відкрий успішний GitHub Actions run, завантаж артефакт `ternopil-epigis-dist`, розпакуй його та завантаж в Cloudflare Pages через **Direct Upload**. Цей спосіб створює/оновлює Pages deployment, а не чинний Worker з адресою `ternopil-epigis.burdataras.workers.dev`.
+### Альтернатива: Cloudflare Pages
+
+Pages — окремий варіант хостингу. Якщо створити Pages-проєкт із цим репозиторієм, задай Build command `npm run build` і Build output directory `dist`. Це буде окремий сайт із власним доменом/маршрутом, а не оновлення чинного Worker.
 
 ## Географічні шари та буферний аналіз
 
