@@ -3,7 +3,7 @@ import { CircleMarker, GeoJSON, MapContainer, Polygon, Polyline, Popup, TileLaye
 import { buffer as turfBuffer } from "@turf/buffer";
 import { booleanIntersects } from "@turf/boolean-intersects";
 import L from "leaflet";
-import { Activity, AlertTriangle, CalendarDays, ChevronDown, Download, FileSpreadsheet, Filter, Layers3, MapPin, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
+import { Activity, AlertTriangle, CalendarDays, ChevronDown, Download, FileSpreadsheet, Filter, Layers3, LocateFixed, MapPin, Pencil, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
 import * as XLSX from "xlsx";
 
 type GISLayer = { id: string; name: string; category: string; visible: boolean; data: any; source: string; importedAt: string; };
@@ -51,7 +51,7 @@ function FitToCases({ cases }: { cases: CaseRecord[] }) {
 
 type DrawMode = "none" | "point" | "line" | "polygon";
 
-function DrawController({ mode, onMapClick }: { mode: DrawMode; onMapClick: (lat: number, lng: number) => void }) {
+function FitToLayer({ layer }: { layer: GISLayer | null }) {\n  const map = useMap();\n  useEffect(() => {\n    if (!layer?.data) return;\n    try {\n      const bounds = L.geoJSON(layer.data).getBounds();\n      if (bounds.isValid()) map.fitBounds(bounds, { padding: [28, 28], maxZoom: 14 });\n    } catch { /* Некоректна геометрія не повинна ламати карту. */ }\n  }, [map, layer]);\n  return null;\n}\n\nfunction DrawController({ mode, onMapClick }: { mode: DrawMode; onMapClick: (lat: number, lng: number) => void }) {
   const map = useMap();
   useEffect(() => {
     if (mode === "none") {
@@ -125,7 +125,7 @@ export default function App() {
   const [gisLayers, setGisLayers] = useState<GISLayer[]>(() => {
     try { const saved = localStorage.getItem("ternopil-epigis-layers-v1"); return saved ? JSON.parse(saved) as GISLayer[] : []; } catch { return []; }
   });
-  const [layerMessage, setLayerMessage] = useState("");
+  const [layerMessage, setLayerMessage] = useState("");\n  const [fitLayerId, setFitLayerId] = useState("");
   const [drawMode, setDrawMode] = useState<DrawMode>("none");
   const [drawPoints, setDrawPoints] = useState<[number, number][]>([]);
   const [bufferLayerId, setBufferLayerId] = useState("");
@@ -236,7 +236,7 @@ export default function App() {
   };
 
   const toggleLayer = (id: string) => setGisLayers((current) => current.map((layer) => layer.id === id ? { ...layer, visible: !layer.visible } : layer));
-  const removeLayer = (id: string) => setGisLayers((current) => current.filter((layer) => layer.id !== id));
+  const removeLayer = (id: string) => { setGisLayers((current) => current.filter((layer) => layer.id !== id)); if (fitLayerId === id) setFitLayerId(""); };\n  const renameLayer = (layer: GISLayer) => {\n    const proposed = window.prompt("Нова назва географічного шару:", layer.name);\n    const name = proposed?.trim();\n    if (!name || name === layer.name) return;\n    setGisLayers((current) => current.map((item) => item.id === layer.id ? { ...item, name } : item));\n    setLayerMessage(`Шар перейменовано на «${name}».`);\n  };
   const exportGeoJSONLayer = (layer: GISLayer) => {
     const blob = new Blob([JSON.stringify(layer.data, null, 2)], { type: "application/geo+json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -430,7 +430,7 @@ export default function App() {
               <div className="layer-list">{gisLayers.map((layer) => <div className="layer-item" key={layer.id}>
                 <label><input type="checkbox" checked={layer.visible} onChange={() => toggleLayer(layer.id)} /><span className="layer-name">{layer.name}</span></label>
                 <span className="layer-meta">{layer.data.features.length} об'єктів</span>
-                <button className="layer-export" title="Експортувати GeoJSON" aria-label={`Експортувати шар ${layer.name}`} onClick={() => exportGeoJSONLayer(layer)}><Download size={13} /></button>
+                <button className="layer-export" title="Показати шар на карті" aria-label={`Масштабувати карту до шару ${layer.name}`} onClick={() => setFitLayerId(layer.id)}><LocateFixed size={13} /></button>\n                <button className="layer-export" title="Перейменувати шар" aria-label={`Перейменувати шар ${layer.name}`} onClick={() => renameLayer(layer)}><Pencil size={13} /></button>\n                <button className="layer-export" title="Експортувати GeoJSON" aria-label={`Експортувати шар ${layer.name}`} onClick={() => exportGeoJSONLayer(layer)}><Download size={13} /></button>
                 <button className="layer-remove" title="Видалити шар" aria-label={`Видалити шар ${layer.name}`} onClick={() => removeLayer(layer.id)}><X size={13} /></button>
               </div>)}</div>}
 
@@ -518,7 +518,7 @@ export default function App() {
                     layerObject.bindTooltip(label, { sticky: true });
                   }}
                 />)}
-                <FitToCases cases={filtered} />
+                <FitToCases cases={filtered} />\n                <FitToLayer layer={gisLayers.find((layer) => layer.id === fitLayerId) ?? null} />
                 {filtered.map((item) => <CircleMarker key={item.id} center={[item.latitude, item.longitude]} radius={selected?.id === item.id ? 10 : 7} pathOptions={{ color: item.status === "Підтверджено" ? "#126b58" : "#d28a24", fillColor: item.status === "Підтверджено" ? "#21866d" : "#e6a744", fillOpacity: 0.88, weight: selected?.id === item.id ? 3 : 1.5 }} eventHandlers={{ click: () => setSelected(item) }}><Popup><strong>{item.disease}</strong><br />{item.settlement || item.hromada}<br />{item.date}<br />{item.status}</Popup></CircleMarker>)}
               </MapContainer>
               {filtered.length === 0 && <div className="empty-map">За вибраними параметрами записів не знайдено.</div>}
