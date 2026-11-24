@@ -222,6 +222,16 @@ export default function App() {
 
   const toggleLayer = (id: string) => setGisLayers((current) => current.map((layer) => layer.id === id ? { ...layer, visible: !layer.visible } : layer));
   const removeLayer = (id: string) => setGisLayers((current) => current.filter((layer) => layer.id !== id));
+  const exportGeoJSONLayer = (layer: GISLayer) => {
+    const blob = new Blob([JSON.stringify(layer.data, null, 2)], { type: "application/geo+json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${layer.name.replace(/[^\\p{L}\\p{N}_-]+/gu, "_") || "gis-layer"}.geojson`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
 
 
   const addMapFeature = (geometry: any, name: string, category: string) => {
@@ -359,6 +369,7 @@ export default function App() {
               <div className="layer-list">{gisLayers.map((layer) => <div className="layer-item" key={layer.id}>
                 <label><input type="checkbox" checked={layer.visible} onChange={() => toggleLayer(layer.id)} /><span className="layer-name">{layer.name}</span></label>
                 <span className="layer-meta">{layer.data.features.length} об'єктів</span>
+                <button className="layer-export" title="Експортувати GeoJSON" aria-label={`Експортувати шар ${layer.name}`} onClick={() => exportGeoJSONLayer(layer)}><Download size={13} /></button>
                 <button className="layer-remove" title="Видалити шар" aria-label={`Видалити шар ${layer.name}`} onClick={() => removeLayer(layer.id)}><X size={13} /></button>
               </div>)}</div>}
 
