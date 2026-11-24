@@ -178,7 +178,7 @@ export default function App() {
       }
       const layer: GISLayer = {
         id: `layer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        name: file.name.replace(/\\.(geojson|json)$/i, ""),
+        name: file.name.replace(/\.(geojson|json)$/i, ""),
         category: "Імпортовані дані",
         visible: true,
         data: { type: "FeatureCollection", features: supported },
