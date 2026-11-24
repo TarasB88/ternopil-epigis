@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CircleMarker, GeoJSON, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
+import L from "leaflet";
 import { Activity, AlertTriangle, CalendarDays, ChevronDown, Download, FileSpreadsheet, Filter, Layers3, MapPin, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
 import * as XLSX from "xlsx";
+
+type GISLayer = { id: string; name: string; category: string; visible: boolean; data: any; source: string; importedAt: string; };
 
 type CaseRecord = {
   id: string;
@@ -86,6 +89,11 @@ function toCase(row: Record<string, unknown>, index: number): CaseRecord | null 
 
 export default function App() {
   const [cases, setCases] = useState<CaseRecord[]>(DEMO_CASES);
+  const [gisLayers, setGisLayers] = useState<GISLayer[]>(() => {
+    try { const saved = localStorage.getItem("ternopil-epigis-layers-v1"); return saved ? JSON.parse(saved) as GISLayer[] : []; } catch { return []; }
+  });
+  const [layerMessage, setLayerMessage] = useState("");
+  const layerFileRef = useRef<HTMLInputElement>(null);
   const [hromadaBoundaries, setHromadaBoundaries] = useState<any>(null);
   const [disease, setDisease] = useState("Усі нозології");
   const [hromada, setHromada] = useState("Усі громади");
@@ -152,6 +160,43 @@ export default function App() {
     }
   };
 
+  const importGeoJSON = async (file?: File) => {
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      const data = parsed?.type === "FeatureCollection" ? parsed :
+        parsed?.type === "Feature" ? { type: "FeatureCollection", features: [parsed] } : null;
+      if (!data || !Array.isArray(data.features) || !data.features.length) {
+        setLayerMessage("Файл має містити GeoJSON Feature або FeatureCollection з геометріями.");
+        return;
+      }
+      const supported = data.features.filter((feature: any) =>
+        feature?.geometry && ["Point", "MultiPoint", "LineString", "MultiLineString", "Polygon", "MultiPolygon"].includes(feature.geometry.type));
+      if (!supported.length) {
+        setLayerMessage("У файлі не знайдено підтримуваних геометрій: точки, лінії або полігони.");
+        return;
+      }
+      const layer: GISLayer = {
+        id: `layer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name: file.name.replace(/\\.(geojson|json)$/i, ""),
+        category: "Імпортовані дані",
+        visible: true,
+        data: { type: "FeatureCollection", features: supported },
+        source: file.name,
+        importedAt: new Date().toISOString()
+      };
+      setGisLayers((current) => [...current, layer]);
+      setLayerMessage(`Додано шар «${layer.name}»: ${supported.length} географічних об'єктів.`);
+    } catch {
+      setLayerMessage("Не вдалося прочитати GeoJSON. Перевір структуру та синтаксис JSON.");
+    } finally {
+      if (layerFileRef.current) layerFileRef.current.value = "";
+    }
+  };
+
+  const toggleLayer = (id: string) => setGisLayers((current) => current.map((layer) => layer.id === id ? { ...layer, visible: !layer.visible } : layer));
+  const removeLayer = (id: string) => setGisLayers((current) => current.filter((layer) => layer.id !== id));
+
   const exportCsv = () => {
     const header = TEMPLATE_HEADERS.join(",");
     const rows = filtered.map((item) => TEMPLATE_HEADERS.map((key) => {
@@ -217,7 +262,18 @@ export default function App() {
             <div className="legend-title"><Layers3 size={15} /> Умовні позначення</div>
             <div className="legend-row"><span className="legend-dot confirmed" /> Підтверджений випадок</div>
             <div className="legend-row"><span className="legend-dot investigating" /> Розслідується</div>
-            <div className="privacy-note"><ShieldCheck size={16} /><span>Дані обробляються у браузері. У цій версії імпорт не надсилається на сервер.</span></div>
+            <div className="sidebar-divider" />
+            <div className="legend-title"><Layers3 size={15} /> Географічні шари <span className="layer-count">{gisLayers.length}</span></div>
+            <button className="button button-light layer-import-button" onClick={() => layerFileRef.current?.click()}><Upload size={14} /> Додати GeoJSON</button>
+            <input ref={layerFileRef} type="file" accept=".geojson,.json,application/geo+json,application/json" hidden onChange={(event) => importGeoJSON(event.target.files?.[0])} />
+            {layerMessage && <div className="layer-message">{layerMessage}</div>}
+            {gisLayers.length === 0 ? <p className="layer-empty">Поки немає власних шарів. Додай GeoJSON із точками, лініями або полігонами.</p> :
+              <div className="layer-list">{gisLayers.map((layer) => <div className="layer-item" key={layer.id}>
+                <label><input type="checkbox" checked={layer.visible} onChange={() => toggleLayer(layer.id)} /><span className="layer-name">{layer.name}</span></label>
+                <span className="layer-meta">{layer.data.features.length} об'єктів</span>
+                <button className="layer-remove" title="Видалити шар" aria-label={`Видалити шар ${layer.name}`} onClick={() => removeLayer(layer.id)}><X size={13} /></button>
+              </div>)}</div>}
+            <div className="privacy-note"><ShieldCheck size={16} /><span>Шари зберігаються локально у браузері. Вони не передаються на сервер і можуть бути недоступні на іншому пристрої.</span></div>
           </aside>
 
           <section className="map-section">
@@ -251,6 +307,25 @@ export default function App() {
                     });
                   }}
                 />}
+                {gisLayers.filter((layer) => layer.visible).map((layer, index) => <GeoJSON
+                  key={layer.id}
+                  data={layer.data}
+                  style={() => ({
+                    color: ["#176b55", "#2563a6", "#b7791f", "#7c3aed", "#be4b49"][index % 5],
+                    weight: 2.5,
+                    opacity: 0.9,
+                    fillOpacity: 0.16
+                  })}
+                  pointToLayer={(_feature, latlng) => L.circleMarker(latlng, {
+                    radius: 5, color: ["#176b55", "#2563a6", "#b7791f", "#7c3aed", "#be4b49"][index % 5],
+                    fillColor: "#ffffff", fillOpacity: 0.9, weight: 2
+                  })}
+                  onEachFeature={(feature, layerObject) => {
+                    const properties = feature?.properties ?? {};
+                    const label = String(properties.name ?? properties.NAME ?? properties.НАЗВА ?? properties.id ?? "Об'єкт шару");
+                    layerObject.bindTooltip(label, { sticky: true });
+                  }}
+                />)}
                 <FitToCases cases={filtered} />
                 {filtered.map((item) => <CircleMarker key={item.id} center={[item.latitude, item.longitude]} radius={selected?.id === item.id ? 10 : 7} pathOptions={{ color: item.status === "Підтверджено" ? "#126b58" : "#d28a24", fillColor: item.status === "Підтверджено" ? "#21866d" : "#e6a744", fillOpacity: 0.88, weight: selected?.id === item.id ? 3 : 1.5 }} eventHandlers={{ click: () => setSelected(item) }}><Popup><strong>{item.disease}</strong><br />{item.settlement || item.hromada}<br />{item.date}<br />{item.status}</Popup></CircleMarker>)}
               </MapContainer>
