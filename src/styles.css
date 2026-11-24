@@ -36,3 +36,9 @@
 
 /* GIS Core: spatial intersection controls */
 .layer-empty{line-height:1.55}
+
+/* Domain registry catalog */
+.registry-catalog{display:flex;flex-direction:column;gap:6px;margin:8px 0 12px}
+.registry-catalog-item{display:flex;flex-direction:column;gap:3px;padding:7px 8px;border:1px solid #e7eee9;border-radius:7px;background:#fbfdfb}
+.registry-catalog-item strong{font-size:9px;color:#385447;font-weight:700}
+.registry-catalog-item span{font-size:8px;color:#87988f}
