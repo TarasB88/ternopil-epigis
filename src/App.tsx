@@ -185,7 +185,9 @@ function FacilityMarkerLayer({ records, language }: { records: RegistryRecord[];
         const index = indices[0];
         const record = visible[index].record;
         const symbol = facilitySymbol([record.values.facility_type, record.values.name].filter(Boolean).join(" "));
-        const name = String(record.values.name ?? "Медичний заклад");
+        const name = record.values.name === undefined || record.values.name === null || String(record.values.name).trim() === ""
+          ? translate("Медичний заклад")
+          : String(record.values.name);
         const html = `<span class="facility-marker facility-marker--${symbol.kind}" style="--marker-size:${iconSize}px"><span>${symbol.glyph}</span></span>`;
         const icon = L.divIcon({
           className: "facility-marker-host",
@@ -200,7 +202,7 @@ function FacilityMarkerLayer({ records, language }: { records: RegistryRecord[];
         heading.textContent = name;
         popup.appendChild(heading);
         const details: Array<[string, unknown]> = [
-          [translate("Тип"), record.values.facility_type ? translate(String(record.values.facility_type)) : translate(symbol.label)],
+          [translate("Тип"), record.values.facility_type ? String(record.values.facility_type) : translate(symbol.label)],
           [translate("Адреса"), record.values.address],
           [translate("Населений пункт"), record.values.settlement],
           [translate("Громада"), record.values.hromada],
@@ -771,7 +773,16 @@ function localizeNode(node: React.ReactNode, language: "uk" | "en"): React.React
 
 export default function App() {
   const [language, setLanguage] = useState<"uk" | "en">(() => localStorage.getItem("ternopil-epigis-language") === "en" ? "en" : "uk");
-  useEffect(() => { localStorage.setItem("ternopil-epigis-language", language); }, [language]);
+  useEffect(() => {
+    localStorage.setItem("ternopil-epigis-language", language);
+    document.documentElement.lang = language;
+    const description = document.querySelector<HTMLMetaElement>('meta[name="description"]');
+    if (description) {
+      description.content = language === "en"
+        ? "Ternopil EpiGIS — epidemiological mapping and spatial surveillance for Ternopil Oblast."
+        : "Ternopil EpiGIS — інструмент епідеміологічного картографування Тернопільської області.";
+    }
+  }, [language]);
   const [cases, setCases] = useState<CaseRecord[]>(() => { try { const saved = localStorage.getItem("ternopil-epigis-cases-v1"); return saved ? JSON.parse(saved) as CaseRecord[] : DEMO_CASES; } catch { return DEMO_CASES; } });
   const [gisLayers, setGisLayers] = useState<GISLayer[]>(() => {
     try { const saved = localStorage.getItem("ternopil-epigis-layers-v1"); return saved ? JSON.parse(saved) as GISLayer[] : []; } catch { return []; }
@@ -1531,9 +1542,9 @@ export default function App() {
                     };
                   }}
                   onEachFeature={(feature, layer) => {
-                    const name = String(feature?.properties?.ADM3_UA ?? "Територіальна громада");
+                    const name = feature?.properties?.ADM3_UA == null ? translateUI("Територіальна громада", language) : String(feature.properties.ADM3_UA);
                     const district = String(feature?.properties?.ADM2_UA ?? "");
-                    layer.bindTooltip(district ? `${name} · ${district} район` : name, { sticky: true });
+                    layer.bindTooltip(district ? `${name} · ${district}${language === "en" ? " district" : " район"}` : name, { sticky: true });
                     layer.on("click", () => {
                       const match = hromadas.find((item) => item !== "Усі громади" &&
                         (item.toLocaleLowerCase("uk-UA").includes(name.replace(/ громада$/i, "").toLocaleLowerCase("uk-UA")) ||
@@ -1558,14 +1569,15 @@ export default function App() {
                   })}
                   onEachFeature={(feature, layerObject) => {
                     const properties = feature?.properties ?? {};
-                    const label = String(properties.name ?? properties.NAME ?? properties.НАЗВА ?? properties.id ?? "Об'єкт шару");
+                    const rawLabel = properties.name ?? properties.NAME ?? properties.НАЗВА ?? properties.id;
+                    const label = rawLabel == null || String(rawLabel).trim() === "" ? translateUI("Об'єкт шару", language) : String(rawLabel);
                     layerObject.bindTooltip(label, { sticky: true });
                   }}
                 />)}
                 <FitToCases cases={filtered} />
                 <FitToLayer layer={gisLayers.find((layer) => layer.id === fitLayerId) ?? null} />
                 <FacilityMarkerLayer records={filteredRegistryRecords.filter((record) => record.registryId === "healthcare")} language={language} />
-                {filteredRegistryRecords.filter((record) => record.registryId !== "healthcare").map((record) => <CircleMarker key={record.id} center={[record.latitude, record.longitude]} radius={6} pathOptions={{ color: "#315f9a", fillColor: "#4d83bd", fillOpacity: 0.85, weight: 1.5 }}><Popup><strong>{String(record.values.name ?? "Об’єкт реєстру")}</strong><br />{translateUI(REGISTRIES.find((registry) => registry.id === record.registryId)?.label ?? record.registryId, language)}<br />{String(record.values.hromada ?? "")}</Popup></CircleMarker>)}
+                {filteredRegistryRecords.filter((record) => record.registryId !== "healthcare").map((record) => <CircleMarker key={record.id} center={[record.latitude, record.longitude]} radius={6} pathOptions={{ color: "#315f9a", fillColor: "#4d83bd", fillOpacity: 0.85, weight: 1.5 }}><Popup><strong>{record.values.name == null || String(record.values.name).trim() === "" ? translateUI("Об’єкт реєстру", language) : String(record.values.name)}</strong><br />{translateUI(REGISTRIES.find((registry) => registry.id === record.registryId)?.label ?? record.registryId, language)}<br />{String(record.values.hromada ?? "")}</Popup></CircleMarker>)}
                 {filtered.filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude)).map((item) => <CircleMarker key={item.id} center={[item.latitude as number, item.longitude as number]} radius={selected?.id === item.id ? 10 : 7} pathOptions={{ color: item.status === "Підтверджено" ? "#126b58" : "#d28a24", fillColor: item.status === "Підтверджено" ? "#21866d" : "#e6a744", fillOpacity: 0.88, weight: selected?.id === item.id ? 3 : 1.5 }} eventHandlers={{ click: () => setSelected(item) }}><Popup><strong>{item.disease}</strong><br />{item.settlement || item.hromada}<br />{item.date}<br />{translateUI(item.status, language)}</Popup></CircleMarker>)}
               </MapContainer>
               {filtered.length === 0 && filteredRegistryRecords.length === 0 && <div className="empty-map">За вибраними параметрами записів не знайдено.</div>}
@@ -1599,7 +1611,7 @@ export default function App() {
                 const registry = REGISTRIES.find((item) => item.id === record.registryId);
                 const typeField = registry?.fields.find((field) => field.key.endsWith("_type") || ["disease", "organism", "life_stage", "risk_group"].includes(field.key));
                 const dateValue = record.values.detected_at ?? record.values.sample_date ?? record.values.observed_at ?? record.values.updated_at ?? "";
-                return <tr key={record.id}><td>{translateUI(registry?.label ?? record.registryId, language)}</td><td>{String(record.values.name ?? record.values.object_id ?? "—")}</td><td>{String(record.values.hromada ?? "—")}{record.values.settlement ? <small>{String(record.values.settlement)}</small> : null}</td><td>{translateUI(String((typeField && record.values[typeField.key]) ?? "—"), language)}</td><td>{String(dateValue || "—")}</td></tr>;
+                return <tr key={record.id}><td>{translateUI(registry?.label ?? record.registryId, language)}</td><td>{String(record.values.name ?? record.values.object_id ?? "—")}</td><td>{String(record.values.hromada ?? "—")}{record.values.settlement ? <small>{String(record.values.settlement)}</small> : null}</td><td>{String((typeField && record.values[typeField.key]) ?? "—")}</td><td>{String(dateValue || "—")}</td></tr>;
               })}
             </tbody></table>{filteredRegistryRecords.length > 100 && <div className="table-foot">{language === "en" ? `Showing 100 of ${filteredRegistryRecords.length} objects. Full data is available in the Excel data store.` : `Показано 100 із ${filteredRegistryRecords.length} об’єктів. Повні дані містяться в Excel-сховищі.`}</div>}{!filteredRegistryRecords.length && <div className="table-empty">Об’єктів для відображення немає.</div>}</div>
           </section>
@@ -1649,7 +1661,7 @@ export default function App() {
             </div>
             <div className="detail-divider" />
             <div className="section-title"><MapPin size={17} /><h2>Картка випадку</h2></div>
-            {selected ? <><div className="detail-status"><span className={selected.status === "Підтверджено" ? "legend-dot confirmed" : "legend-dot investigating"} />{translateUI(selected.status, language)}</div><h3>{selected.disease}</h3><p className="detail-subtitle">{selected.id}</p><div className="detail-divider" />{[[ "Дата реєстрації", selected.date ],["Територія", selected.hromada],["Населений пункт", selected.settlement || "Не вказано"],["Вік", selected.age === undefined ? "Не вказано" : (language === "en" ? `${selected.age} years` : `${selected.age} років`)],["Стать", selected.sex || "Не вказано"],["Широта", selected.latitude === undefined ? "Не вказано" : selected.latitude.toFixed(5)],["Довгота", selected.longitude === undefined ? "Не вказано" : selected.longitude.toFixed(5)]].map(([label, value]) => <div className="detail-field" key={label}><span>{label}</span><strong>{value}</strong></div>)}{selected.notes && <div className="detail-notes"><span>Примітки</span><p>{selected.notes}</p></div>}<button className="button button-light full-button" onClick={() => setSelected(null)}>Очистити вибір</button></> : <div className="detail-empty"><div className="detail-empty-icon"><MapPin size={22} /></div><strong>Випадок не вибрано</strong><p>Обери точку на карті або запис у реєстрі, щоб побачити деталі.</p></div>}
+            {selected ? <><div className="detail-status"><span className={selected.status === "Підтверджено" ? "legend-dot confirmed" : "legend-dot investigating"} />{translateUI(selected.status, language)}</div><h3>{selected.disease}</h3><p className="detail-subtitle">{selected.id}</p><div className="detail-divider" />{[[ "Дата реєстрації", selected.date ],["Територія", selected.hromada],["Населений пункт", selected.settlement || (language === "en" ? "Not specified" : "Не вказано")],["Вік", selected.age === undefined ? (language === "en" ? "Not specified" : "Не вказано") : (language === "en" ? `${selected.age} years` : `${selected.age} років`)],["Стать", selected.sex || (language === "en" ? "Not specified" : "Не вказано")],["Широта", selected.latitude === undefined ? (language === "en" ? "Not specified" : "Не вказано") : selected.latitude.toFixed(5)],["Довгота", selected.longitude === undefined ? (language === "en" ? "Not specified" : "Не вказано") : selected.longitude.toFixed(5)]].map(([label, value]) => <div className="detail-field" key={label}><span>{translateUI(String(label), language)}</span><strong>{value}</strong></div>)}{selected.notes && <div className="detail-notes"><span>Примітки</span><p>{selected.notes}</p></div>}<button className="button button-light full-button" onClick={() => setSelected(null)}>Очистити вибір</button></> : <div className="detail-empty"><div className="detail-empty-icon"><MapPin size={22} /></div><strong>Випадок не вибрано</strong><p>Обери точку на карті або запис у реєстрі, щоб побачити деталі.</p></div>}
             <div className="alert-note"><AlertTriangle size={16} /><p><strong>Важливо</strong> Просторове скупчення точок саме по собі не підтверджує спалах. Потрібна епідеміологічна оцінка.</p></div>
           </aside>
         </section>
