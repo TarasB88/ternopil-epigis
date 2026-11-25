@@ -201,7 +201,12 @@ function FacilityMarkerLayer({ records }: { records: RegistryRecord[] }) {
           ["Населений пункт", record.values.settlement],
           ["Громада", record.values.hromada],
           ["Форма власності", record.values.ownership],
-          ["Джерело", record.values.source]
+          ["ЄДРПОУ", record.values.edrpou],
+          ["Телефон", record.values.phone],
+          ["Електронна пошта", record.values.email],
+          ["ID місця надання послуг НСЗУ", record.values.division_id],
+          ["Джерело", record.values.source],
+          ["Дата оновлення джерела", record.values.source_updated_at]
         ];
         details.forEach(([label, value]) => {
           if (value === undefined || value === null || String(value).trim() === "") return;
