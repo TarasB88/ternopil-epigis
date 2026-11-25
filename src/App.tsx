@@ -605,6 +605,8 @@ const UI_TRANSLATIONS: Record<string, string> = {
   "Додати": "Add",
   "Так": "Yes",
   "Ні": "No"
+};
+
 function localizeNode(node: React.ReactNode, language: "uk" | "en"): React.ReactNode {
   if (language === "uk") return node;
   if (typeof node === "string") return UI_TRANSLATIONS[node] ?? node;
@@ -1513,4 +1515,3 @@ export default function App() {
 
 function Metric({ icon, label, value, note }: { icon: React.ReactNode; label: string; value: string; note: string }) {
   return <div className="metric-card"><div className="metric-icon">{icon}</div><div className="metric-label">{label}</div><div className="metric-value">{value}</div><div className="metric-note">{note}</div></div>;
-,\n  "Громада": "Community",\n  "Джерело": "Source"}
