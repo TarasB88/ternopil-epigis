@@ -175,7 +175,7 @@ function FacilityMarkerLayer({ records, language }: { records: RegistryRecord[];
             iconSize: [clusterSize, clusterSize],
             iconAnchor: [clusterSize / 2, clusterSize / 2]
           });
-          const marker = L.marker(latlng, { icon, title: `${indices.length} медичних закладів у групі`, keyboard: true });
+          const marker = L.marker(latlng, { icon, title: language === "en" ? `${indices.length} healthcare facilities in cluster` : `${indices.length} медичних закладів у групі`, keyboard: true });
           const bounds = L.latLngBounds(indices.map((index) => [visible[index].record.latitude, visible[index].record.longitude] as [number, number]));
           marker.on("click", () => map.fitBounds(bounds, { padding: [34, 34], maxZoom: 16 }));
           marker.addTo(layer);
@@ -641,6 +641,7 @@ const UI_TRANSLATIONS: Record<string, string> = {
   "Аркуш Cases містить лише демонстраційний рядок CASE-0001 (\"Приклад — замінити даними\"). Його пропущено; додай реальні записи починаючи з наступного рядка. Попередні випадки збережено.": "The Cases sheet contains only the demonstration row CASE-0001 (\"Example — replace with data\"). It was skipped; add real records starting from the next row. Previous cases were preserved.",
   "Створено на карті": "Created on map",
   "Ручне креслення на карті": "Manual map drawing",
+  "Ручні об'єкти": "Manually drawn features",
   "Нова точка": "New point",
   "Нова лінія": "New line",
   "Новий полігон": "New polygon",
@@ -1586,10 +1587,10 @@ export default function App() {
               <div className="layer-list">{gisLayers.map((layer) => <div className="layer-item" key={layer.id}>
                 <label><input type="checkbox" checked={layer.visible} onChange={() => toggleLayer(layer.id)} /><span className="layer-name">{layer.name}</span></label>
                 <span className="layer-meta">{language === "en" ? `${layer.data.features.length} features` : `${layer.data.features.length} об'єктів`}</span>
-                <button className="layer-export" title="Показати шар на карті" aria-label={`Масштабувати карту до шару ${layer.name}`} onClick={() => setFitLayerId(layer.id)}><LocateFixed size={13} /></button>
-                <button className="layer-export" title="Перейменувати шар" aria-label={`Перейменувати шар ${layer.name}`} onClick={() => renameLayer(layer)}><Pencil size={13} /></button>
-                <button className="layer-export" title="Експортувати GeoJSON" aria-label={`Експортувати шар ${layer.name}`} onClick={() => exportGeoJSONLayer(layer)}><Download size={13} /></button>
-                <button className="layer-remove" title="Видалити шар" aria-label={`Видалити шар ${layer.name}`} onClick={() => removeLayer(layer.id)}><X size={13} /></button>
+                <button className="layer-export" title="Показати шар на карті" aria-label={language === "en" ? `Zoom map to layer ${layer.name}` : `Масштабувати карту до шару ${layer.name}`} onClick={() => setFitLayerId(layer.id)}><LocateFixed size={13} /></button>
+                <button className="layer-export" title="Перейменувати шар" aria-label={language === "en" ? `Rename layer ${layer.name}` : `Перейменувати шар ${layer.name}`} onClick={() => renameLayer(layer)}><Pencil size={13} /></button>
+                <button className="layer-export" title="Експортувати GeoJSON" aria-label={language === "en" ? `Export layer ${layer.name}` : `Експортувати шар ${layer.name}`} onClick={() => exportGeoJSONLayer(layer)}><Download size={13} /></button>
+                <button className="layer-remove" title="Видалити шар" aria-label={language === "en" ? `Delete layer ${layer.name}` : `Видалити шар ${layer.name}`} onClick={() => removeLayer(layer.id)}><X size={13} /></button>
               </div>)}</div>}
 
             <div className="legend-title"><MapPin size={15} /> Креслення на карті</div>
