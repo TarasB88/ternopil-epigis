@@ -378,12 +378,18 @@ export default function App() {
   const diseases = useMemo(() => Array.from(new Set(cases.map((item) => item.disease))).sort(), [cases]);
   const hromadas = useMemo(() => Array.from(new Set(cases.map((item) => item.hromada))).sort(), [cases]);
   const filtered = useMemo(() => cases.filter((item) =>
+    (registryFilterId === "all" || registryFilterId === "cases") &&
     (selectedDiseases.length === 0 || selectedDiseases.includes(item.disease)) &&
     (selectedHromadas.length === 0 || selectedHromadas.includes(item.hromada)) &&
     (!fromDate || item.date >= fromDate) && (!toDate || item.date <= toDate) &&
     (!onlyConfirmed || item.status === "Підтверджено") &&
-    (!search || [item.id, item.settlement, item.hromada, item.disease].join(" ").toLowerCase().includes(search.toLowerCase()))
-  ), [cases, selectedDiseases, selectedHromadas, fromDate, toDate, onlyConfirmed, search]);
+    (!search || [item.id, item.settlement, item.hromada, item.disease].join(" ").toLowerCase().includes(search.toLowerCase())) &&
+    (registryFilterId !== "cases" || registryCommunityFilter === "Усі громади" || item.hromada === registryCommunityFilter) &&
+    (registryFilterId !== "cases" || registryTypeFilter === "Усі типи" || item.disease === registryTypeFilter) &&
+    (registryFilterId !== "cases" || !registryFromDate || item.date >= registryFromDate) &&
+    (registryFilterId !== "cases" || !registryToDate || item.date <= registryToDate) &&
+    (registryFilterId !== "cases" || !registrySearch || [item.id, item.settlement, item.hromada, item.disease, item.status].join(" ").toLocaleLowerCase("uk-UA").includes(registrySearch.toLocaleLowerCase("uk-UA")))
+  ), [cases, registryFilterId, registryCommunityFilter, registryTypeFilter, registryFromDate, registryToDate, registrySearch, selectedDiseases, selectedHromadas, fromDate, toDate, onlyConfirmed, search]);
 
   const confirmed = filtered.filter((item) => item.status === "Підтверджено").length;
   const locations = new Set(filtered.map((item) => item.hromada)).size;
@@ -666,9 +672,16 @@ export default function App() {
   const activeRegistry = REGISTRIES.find((registry) => registry.id === activeRegistryId) ?? REGISTRIES[0];
   const activeRegistryRecords = registryRecords.filter((record) => record.registryId === activeRegistryId);
   const registryFilterDefinition = REGISTRIES.find((registry) => registry.id === registryFilterId);
-  const registryTypeField = registryFilterDefinition?.fields.find((field) => field.key.endsWith("_type") || ["disease", "organism", "life_stage", "risk_group"].includes(field.key));
-  const registryTypeOptions = registryFilterId === "all" || !registryTypeField ? [] : Array.from(new Set(registryRecords.filter((record) => record.registryId === registryFilterId).map((record) => String(record.values[registryTypeField.key] ?? "")).filter(Boolean))).sort();
-  const registryCommunityOptions = ["Усі громади", ...Array.from(new Set(registryRecords.map((record) => String(record.values.hromada ?? "")).filter(Boolean))).sort()];
+  const registryTypeField = registryFilterId === "cases"
+    ? { key: "disease", label: "Нозологія" }
+    : registryFilterDefinition?.fields.find((field) => field.key.endsWith("_type") || ["disease", "organism", "life_stage", "risk_group"].includes(field.key));
+  const registryTypeOptions = registryFilterId === "all" || !registryTypeField ? [] : registryFilterId === "cases"
+    ? Array.from(new Set(cases.map((item) => item.disease))).sort()
+    : Array.from(new Set(registryRecords.filter((record) => record.registryId === registryFilterId).map((record) => String(record.values[registryTypeField.key] ?? "")).filter(Boolean))).sort();
+  const registryCommunityOptions = ["Усі громади", ...Array.from(new Set([
+    ...registryRecords.map((record) => String(record.values.hromada ?? "")),
+    ...cases.map((item) => item.hromada)
+  ].filter(Boolean))).sort()];
   const filteredRegistryRecords = registryRecords.filter((record) => {
     if (registryFilterId !== "all" && record.registryId !== registryFilterId) return false;
     if (registryCommunityFilter !== "Усі громади" && String(record.values.hromada ?? "") !== registryCommunityFilter) return false;
@@ -940,7 +953,7 @@ export default function App() {
             <div className="sidebar-divider" />
             <div className="legend-title"><Filter size={15} /> Фільтри предметних реєстрів</div>
             <label className="field-label">Тип реєстру</label>
-            <div className="select-wrap"><select value={registryFilterId} onChange={(event) => { setRegistryFilterId(event.target.value); setRegistryTypeFilter("Усі типи"); }}><option value="all">Усі реєстри</option>{REGISTRIES.map((registry) => <option key={registry.id} value={registry.id}>{registry.label}</option>)}</select><ChevronDown size={15} /></div>
+            <div className="select-wrap"><select value={registryFilterId} onChange={(event) => { setRegistryFilterId(event.target.value); setRegistryTypeFilter("Усі типи"); }}><option value="all">Усі реєстри</option><option value="cases">Реєстр випадків</option>{REGISTRIES.map((registry) => <option key={registry.id} value={registry.id}>{registry.label}</option>)}</select><ChevronDown size={15} /></div>
             <label className="field-label">Пошук об’єкта / атрибута</label>
             <div className="search-field"><Search size={16} /><input value={registrySearch} onChange={(event) => setRegistrySearch(event.target.value)} placeholder="Назва, адреса, оператор, вид…" /></div>
             <label className="field-label">Територіальна громада</label>
