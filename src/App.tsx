@@ -666,16 +666,20 @@ const UI_TRANSLATIONS: Record<string, string> = {
   "Імпорт із Excel": "Imported from Excel",
   "Джерело": "Source",
   "Громада": "Community",
+  "Випадки інфекційних захворювань. Дані ведуться в окремому реєстрі випадків і на аркуші Cases; не змішуються з предметними реєстрами.": "Infectious disease cases. Data are maintained in a dedicated case registry and the Cases worksheet; they are not mixed with thematic registries.",
+  "Число": "Number",
+  "Дата YYYY-MM-DD": "Date YYYY-MM-DD",
+  "Текст": "Text",
 };
 
 function translateGeometryType(value: unknown, language: "uk" | "en"): string {
   const types: Record<string, { uk: string; en: string }> = {
     Point: { uk: "Точка", en: "Point" },
-    MultiPoint: { uk: "Мультиточка", en: "MultiPoint" },
+    MultiPoint: { uk: "Мультиточка", en: "Multi-point" },
     LineString: { uk: "Лінія", en: "Line" },
-    MultiLineString: { uk: "Мультилінія", en: "MultiLineString" },
+    MultiLineString: { uk: "Мультилінія", en: "Multi-line" },
     Polygon: { uk: "Полігон", en: "Polygon" },
-    MultiPolygon: { uk: "Мультиполігон", en: "MultiPolygon" },
+    MultiPolygon: { uk: "Мультиполігон", en: "Multi-polygon" },
     GeometryCollection: { uk: "Колекція геометрій", en: "Geometry collection" }
   };
   const key = String(value ?? "");
