@@ -339,7 +339,7 @@ export default function App() {
   const [message, setMessage] = useState("Демонстраційні дані — не реальні випадки.");
   const [showUpload, setShowUpload] = useState(false);
   const [onlyConfirmed, setOnlyConfirmed] = useState(false);
-  const [registryFilterId, setRegistryFilterId] = useState("all");
+  const [selectedRegistryIds, setSelectedRegistryIds] = useState<string[]>(["cases"]);
   const [registryCommunityFilter, setRegistryCommunityFilter] = useState("Усі громади");
   const [registryTypeFilter, setRegistryTypeFilter] = useState("Усі типи");
   const [registrySearch, setRegistrySearch] = useState("");
@@ -384,18 +384,18 @@ export default function App() {
   const diseases = useMemo(() => Array.from(new Set(cases.map((item) => item.disease))).sort(), [cases]);
   const hromadas = useMemo(() => Array.from(new Set(cases.map((item) => item.hromada))).sort(), [cases]);
   const filtered = useMemo(() => cases.filter((item) =>
-    (registryFilterId === "all" || registryFilterId === "cases") &&
+    selectedRegistryIds.includes("cases") &&
     (selectedDiseases.length === 0 || selectedDiseases.includes(item.disease)) &&
     (selectedHromadas.length === 0 || selectedHromadas.includes(item.hromada)) &&
     (!fromDate || item.date >= fromDate) && (!toDate || item.date <= toDate) &&
     (!onlyConfirmed || item.status === "Підтверджено") &&
     (!search || [item.id, item.settlement, item.hromada, item.disease].join(" ").toLowerCase().includes(search.toLowerCase())) &&
-    (registryFilterId !== "cases" || registryCommunityFilter === "Усі громади" || item.hromada === registryCommunityFilter) &&
-    (registryFilterId !== "cases" || registryTypeFilter === "Усі типи" || item.disease === registryTypeFilter) &&
-    (registryFilterId !== "cases" || !registryFromDate || item.date >= registryFromDate) &&
-    (registryFilterId !== "cases" || !registryToDate || item.date <= registryToDate) &&
-    (registryFilterId !== "cases" || !registrySearch || [item.id, item.settlement, item.hromada, item.disease, item.status].join(" ").toLocaleLowerCase("uk-UA").includes(registrySearch.toLocaleLowerCase("uk-UA")))
-  ), [cases, registryFilterId, registryCommunityFilter, registryTypeFilter, registryFromDate, registryToDate, registrySearch, selectedDiseases, selectedHromadas, fromDate, toDate, onlyConfirmed, search]);
+    (!selectedRegistryIds.includes("cases") || registryCommunityFilter === "Усі громади" || item.hromada === registryCommunityFilter) &&
+    (!selectedRegistryIds.includes("cases") || registryTypeFilter === "Усі типи" || item.disease === registryTypeFilter) &&
+    (!selectedRegistryIds.includes("cases") || !registryFromDate || item.date >= registryFromDate) &&
+    (!selectedRegistryIds.includes("cases") || !registryToDate || item.date <= registryToDate) &&
+    (!selectedRegistryIds.includes("cases") || !registrySearch || [item.id, item.settlement, item.hromada, item.disease, item.status].join(" ").toLocaleLowerCase("uk-UA").includes(registrySearch.toLocaleLowerCase("uk-UA")))
+  ), [cases, selectedRegistryIds, registryCommunityFilter, registryTypeFilter, registryFromDate, registryToDate, registrySearch, selectedDiseases, selectedHromadas, fromDate, toDate, onlyConfirmed, search]);
 
   const confirmed = filtered.filter((item) => item.status === "Підтверджено").length;
   const locations = new Set(filtered.map((item) => item.hromada)).size;
@@ -677,21 +677,21 @@ export default function App() {
 
   const activeRegistry = activeRegistryId === "cases" ? CASE_REGISTRY : (REGISTRIES.find((registry) => registry.id === activeRegistryId) ?? REGISTRIES[0]);
   const activeRegistryRecords = registryRecords.filter((record) => record.registryId === activeRegistryId);
-  const registryFilterDefinition = REGISTRIES.find((registry) => registry.id === registryFilterId);
-  const registryTypeField = registryFilterId === "cases"
+  const registryFilterDefinition = selectedRegistryIds.length === 1 ? REGISTRIES.find((registry) => registry.id === selectedRegistryIds[0]) : undefined;
+  const registryTypeField = selectedRegistryIds.length !== 1 ? undefined : selectedRegistryIds[0] === "cases"
     ? { key: "disease", label: "Нозологія" }
     : registryFilterDefinition?.fields.find((field) => field.key.endsWith("_type") || ["disease", "organism", "life_stage", "risk_group"].includes(field.key));
-  const registryTypeOptions = registryFilterId === "all" || !registryTypeField ? [] : registryFilterId === "cases"
+  const registryTypeOptions = !registryTypeField ? [] : selectedRegistryIds[0] === "cases"
     ? Array.from(new Set(cases.map((item) => item.disease))).sort()
-    : Array.from(new Set(registryRecords.filter((record) => record.registryId === registryFilterId).map((record) => String(record.values[registryTypeField.key] ?? "")).filter(Boolean))).sort();
+    : Array.from(new Set(registryRecords.filter((record) => record.registryId === selectedRegistryIds[0]).map((record) => String(record.values[registryTypeField.key] ?? "")).filter(Boolean))).sort();
   const registryCommunityOptions = ["Усі громади", ...Array.from(new Set([
     ...registryRecords.map((record) => String(record.values.hromada ?? "")),
     ...cases.map((item) => item.hromada)
   ].filter(Boolean))).sort()];
   const filteredRegistryRecords = registryRecords.filter((record) => {
-    if (registryFilterId !== "all" && record.registryId !== registryFilterId) return false;
+    if (!selectedRegistryIds.includes(record.registryId)) return false;
     if (registryCommunityFilter !== "Усі громади" && String(record.values.hromada ?? "") !== registryCommunityFilter) return false;
-    if (registryTypeFilter !== "Усі типи" && registryTypeField && record.registryId === registryFilterId && String(record.values[registryTypeField.key] ?? "") !== registryTypeFilter) return false;
+    if (registryTypeFilter !== "Усі типи" && registryTypeField && record.registryId === selectedRegistryIds[0] && String(record.values[registryTypeField.key] ?? "") !== registryTypeFilter) return false;
     const dateValue = String(record.values.detected_at ?? record.values.sample_date ?? record.values.observed_at ?? record.values.updated_at ?? "").slice(0, 10);
     if (registryFromDate && (!dateValue || dateValue < registryFromDate)) return false;
     if (registryToDate && (!dateValue || dateValue > registryToDate)) return false;
@@ -988,7 +988,7 @@ export default function App() {
 
         <section className="workspace">
           <aside className="sidebar">
-            <div className="section-title"><Filter size={17} /><h2>Фільтри</h2><button className="text-button" onClick={() => {setSelectedDiseases([]);setSelectedHromadas([]);setFromDate("2026-01-01");setToDate("2026-12-31");setSearch("");setOnlyConfirmed(false);setRegistryFilterId("all");setRegistryCommunityFilter("Усі громади");setRegistryTypeFilter("Усі типи");setRegistrySearch("");setRegistryFromDate("");setRegistryToDate("");}}>Скинути</button></div>
+            <div className="section-title"><Filter size={17} /><h2>Фільтри</h2><button className="text-button" onClick={() => {setSelectedDiseases([]);setSelectedHromadas([]);setFromDate("2026-01-01");setToDate("2026-12-31");setSearch("");setOnlyConfirmed(false);setSelectedRegistryIds(["cases"]);setRegistryCommunityFilter("Усі громади");setRegistryTypeFilter("Усі типи");setRegistrySearch("");setRegistryFromDate("");setRegistryToDate("");}}>Скинути</button></div>
             <label className="field-label">Пошук за записом або НП</label>
             <div className="search-field"><Search size={16} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Діагноз, громада, населений пункт…" /></div>
             <label className="field-label">Нозології (можна обрати декілька)</label>
@@ -999,13 +999,21 @@ export default function App() {
             <label className="toggle-row"><input type="checkbox" checked={onlyConfirmed} onChange={(e) => setOnlyConfirmed(e.target.checked)} /><span className="toggle-ui" /><span>Лише підтверджені</span></label>
             <div className="sidebar-divider" />
             <div className="legend-title"><Filter size={15} /> Фільтри предметних реєстрів</div>
-            <label className="field-label">Тип реєстру</label>
-            <div className="select-wrap"><select value={registryFilterId} onChange={(event) => { setRegistryFilterId(event.target.value); setRegistryTypeFilter("Усі типи"); }}><option value="all">Усі реєстри</option><option value="cases">Реєстр випадків</option>{REGISTRIES.map((registry) => <option key={registry.id} value={registry.id}>{registry.label}</option>)}</select><ChevronDown size={15} /></div>
+            <label className="field-label">Тип реєстру (можна обрати декілька)</label>
+            <details className="multi-filter">
+              <summary>{selectedRegistryIds.length ? `Обрано: ${selectedRegistryIds.length}` : "Реєстри не вибрано"} <span>▾</span></summary>
+              <div className="multi-filter-options">
+                <button type="button" className="multi-filter-clear" onClick={() => { setSelectedRegistryIds(["cases"]); setRegistryTypeFilter("Усі типи"); }}>За замовчуванням: реєстр випадків</button>
+                <button type="button" className="multi-filter-clear" onClick={() => { setSelectedRegistryIds([]); setRegistryTypeFilter("Усі типи"); }}>Очистити вибір</button>
+                <label><input type="checkbox" checked={selectedRegistryIds.includes("cases")} onChange={(event) => { setSelectedRegistryIds((current) => event.target.checked ? [...current, "cases"] : current.filter((id) => id !== "cases")); setRegistryTypeFilter("Усі типи"); }} />Реєстр випадків</label>
+                {REGISTRIES.map((registry) => <label key={registry.id}><input type="checkbox" checked={selectedRegistryIds.includes(registry.id)} onChange={(event) => { setSelectedRegistryIds((current) => event.target.checked ? [...current, registry.id] : current.filter((id) => id !== registry.id)); setRegistryTypeFilter("Усі типи"); }} />{registry.label}</label>)}
+              </div>
+            </details>
             <label className="field-label">Пошук об’єкта / атрибута</label>
             <div className="search-field"><Search size={16} /><input value={registrySearch} onChange={(event) => setRegistrySearch(event.target.value)} placeholder="Назва, адреса, оператор, вид…" /></div>
             <label className="field-label">Територіальна громада</label>
             <div className="select-wrap"><select value={registryCommunityFilter} onChange={(event) => setRegistryCommunityFilter(event.target.value)}>{registryCommunityOptions.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={15} /></div>
-            {registryTypeField && registryFilterId !== "all" && <><label className="field-label">{registryTypeField.label}</label><div className="select-wrap"><select value={registryTypeFilter} onChange={(event) => setRegistryTypeFilter(event.target.value)}><option>Усі типи</option>{registryTypeOptions.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={15} /></div></>}
+            {registryTypeField && selectedRegistryIds.length === 1 && <><label className="field-label">{registryTypeField.label}</label><div className="select-wrap"><select value={registryTypeFilter} onChange={(event) => setRegistryTypeFilter(event.target.value)}><option>Усі типи</option>{registryTypeOptions.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={15} /></div></>}
             <div className="date-fields"><div><label className="field-label"><CalendarDays size={13} /> Від дати</label><input type="date" value={registryFromDate} onChange={(event) => setRegistryFromDate(event.target.value)} /></div><div><label className="field-label"><CalendarDays size={13} /> До дати</label><input type="date" value={registryToDate} onChange={(event) => setRegistryToDate(event.target.value)} /></div></div>
             <div className="layer-empty">Знайдено об’єктів реєстрів: {filteredRegistryRecords.length}</div>
             <div className="sidebar-divider" />
