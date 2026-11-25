@@ -557,8 +557,9 @@ export default function App() {
         });
         if (sheetInvalidRows > 0) {
           invalidRegistryRows += sheetInvalidRows;
-          return;
+          if (!(registry.id === "healthcare" && isNszuDivisionsFile)) return;
         }
+        if (stagedRecords.length === 0) return;
         replacedRegistryIds.push(registry.id);
         importedRegistryRecords.push(...stagedRecords);
       });
