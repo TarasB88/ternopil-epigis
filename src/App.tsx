@@ -588,7 +588,7 @@ const UI_TRANSLATIONS: Record<string, string> = {
   "Підкладка карти": "Map basemap",
   "Формат експорту карти": "Map export format",
   "Створення…": "Creating…",
-  "Зберегти карту": "Save map",,
+  "Зберегти карту": "Save map",
   "Демонстраційні дані — не реальні випадки.": "Demonstration data — not real cases.",
   "атрибутів · різні геометрії": "attributes · mixed geometries",
   "PNG": "PNG",
@@ -610,6 +610,12 @@ function localizeNode(node: React.ReactNode, language: "uk" | "en"): React.React
     const props: Record<string, unknown> = { ...node.props };
     for (const key of ["placeholder", "title", "aria-label", "label", "description"]) {
       if (typeof props[key] === "string") props[key] = UI_TRANSLATIONS[props[key] as string] ?? props[key];
+    }
+    // Translate only explicit UI option arrays; never alter arbitrary record data.
+    if (Array.isArray(props.options)) {
+      props.options = (props.options as unknown[]).map((option) =>
+        typeof option === "string" ? (UI_TRANSLATIONS[option] ?? option) : option
+      );
     }
     if (props.children !== undefined) props.children = localizeNode(props.children as React.ReactNode, language);
     return cloneElement(node, props);
