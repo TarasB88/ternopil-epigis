@@ -427,7 +427,19 @@ export default function App() {
         ["longitude", "lon", "lng", "довгота", "довгота gps"]
       ];
       const hasCasesSheet = Boolean(findSheetName("Cases", ["Випадки", "Випадки інфекційної захворюваності"]));
-      const isLegacySingleSheet = !hasCasesSheet && workbook.SheetNames.length === 1;
+      const nszuHeaderGroups = [
+        ["division_id", "ідентифікатор підрозділу"],
+        ["division_name", "назва підрозділу"],
+        ["division_type", "тип підрозділу"],
+        ["residence_region", "регіон місцезнаходження"],
+        ["lat", "latitude", "широта"],
+        ["lng", "longitude", "довгота"]
+      ];
+      const singleSheetRows = !hasCasesSheet && workbook.SheetNames.length === 1
+        ? readRows(workbook.SheetNames[0], nszuHeaderGroups)
+        : null;
+      const isNszuDivisionsFile = Boolean(singleSheetRows?.length && Object.keys(singleSheetRows[0]).some((key) => ["division_id", "ідентифікатор підрозділу"].includes(normalizeHeaderKey(key))));
+      const isLegacySingleSheet = !hasCasesSheet && workbook.SheetNames.length === 1 && !isNszuDivisionsFile;
       const caseRows = hasCasesSheet
         ? readRows("Cases", caseHeaderGroups, ["Випадки", "Випадки інфекційної захворюваності"]) ?? []
         : isLegacySingleSheet
@@ -475,13 +487,32 @@ export default function App() {
           ["longitude", "довгота", "lon", "lng"],
           ["record_id", "recordId", "_record_id"]
         ];
-        const rows = readRows(sheetName, registryHeaderGroups, [registry.label]);
+        const rows = registry.id === "healthcare" && isNszuDivisionsFile
+          ? singleSheetRows
+          : readRows(sheetName, registryHeaderGroups, [registry.label]);
         if (rows === null || rows.length === 0) return;
         const stagedRecords: RegistryRecord[] = [];
         let sheetInvalidRows = 0;
         rows.forEach((row, index) => {
+          const nszuAliases: Record<string, string[]> = {
+            object_id: ["division_id", "Ідентифікатор підрозділу"],
+            name: ["division_name", "Назва підрозділу"],
+            hromada: ["residence_gromada_name", "Назва громади місцезнаходження"],
+            settlement: ["residence_settlement", "Населений пункт місцезнаходження", "residence_city"],
+            address: ["residence_addresses", "Адреси місцезнаходження"],
+            source: ["НСЗУ — pmg_legal_entity_divisions_info.csv"],
+            facility_type: ["division_type", "Тип підрозділу"],
+            legal_entity_id: ["legal_entity_id", "Ідентифікатор юридичної особи"],
+            division_id: ["division_id", "Ідентифікатор підрозділу"],
+            service_location_type: ["division_type", "Тип підрозділу"],
+            phone: ["division_phone", "Телефон підрозділу"],
+            email: ["division_email", "Електронна пошта підрозділу"]
+          };
           const getValue = (...keys: string[]) => {
-            for (const key of keys) {
+            const expandedKeys = registry.id === "healthcare"
+              ? keys.flatMap((key) => [key, ...(nszuAliases[key] ?? [])])
+              : keys;
+            for (const key of expandedKeys) {
               const normalizedKey = normalizeHeaderKey(key);
               const found = Object.keys(row).find((candidate) => {
                 const normalizedCandidate = normalizeHeaderKey(candidate);
@@ -493,6 +524,8 @@ export default function App() {
           };
           const latitude = parseSpreadsheetNumber(getValue("latitude", "широта", "lat"));
           const longitude = parseSpreadsheetNumber(getValue("longitude", "довгота", "lon", "lng"));
+          const sourceRegion = String(getValue("residence_region", "регіон місцезнаходження") ?? "").toLocaleLowerCase("uk-UA");
+          if (registry.id === "healthcare" && isNszuDivisionsFile && !sourceRegion.includes("терноп")) return;
           const values: Record<string, string | number> = {};
           registry.fields.forEach((field) => {
             const raw = getValue(field.key, field.label);
