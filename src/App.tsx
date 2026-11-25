@@ -726,10 +726,7 @@ function translateSystemMessage(value: string, language: "uk" | "en"): string {
     [/^Додано шар «(.*)»: ([0-9]+) об'єктів\. Відхилено некоректних або непідтримуваних: ([0-9]+)\.$/, "Layer added: $1 ($2 features). Invalid or unsupported features rejected: $3."],
     [/^Шар перейменовано на «(.*)»\.$/, "Layer renamed to “$1”."],
     [/^Створено шар «(.*)»\.$/, "Layer created: “$1”."],
-    [/^Побудовано буфер ([0-9]+) м для ([0-9]+) об'єктів шару «(.*)»\.$/, "Created a $1 m buffer for $2 features in layer “$3”."],
     [/^Знайдено об'єктів реєстрів: ([0-9]+)$/, "Registry objects found: $1"],
-    [/^Перетинів не виявлено: ([0-9]+) об'єктів перевірено щодо шару «(.*)»\.$/, "No intersections found: $1 features checked against layer “$2”."],
-    [/^Знайдено ([0-9]+) об'єктів із перетином із зоною\. Перевірено об'єктів: ([0-9]+); геометрій зони: ([0-9]+)\. Результат додано окремим шаром\.$/, "Found $1 features intersecting the zone. Features checked: $2; zone geometries: $3. Result added as a separate layer."],
     [/^Познач вершини на карті\. Додано: ([0-9]+)\.$/, "Mark vertices on the map. Added: $1."]
   ];
   for (const [pattern, replacement] of patterns) {
