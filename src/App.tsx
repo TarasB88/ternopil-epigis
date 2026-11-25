@@ -102,7 +102,7 @@ function facilitySymbol(type: unknown): FacilitySymbol {
   return { kind: "other", glyph: "•", label: "Інший медичний заклад" };
 }
 
-function FacilityMarkerLayer({ records }: { records: RegistryRecord[] }) {
+function FacilityMarkerLayer({ records, language }: { records: RegistryRecord[]; language: "uk" | "en" }) {
   const map = useMap();
   useEffect(() => {
     const layer = L.layerGroup().addTo(map);
@@ -1362,7 +1362,7 @@ export default function App() {
                 />)}
                 <FitToCases cases={filtered} />
                 <FitToLayer layer={gisLayers.find((layer) => layer.id === fitLayerId) ?? null} />
-                <FacilityMarkerLayer records={filteredRegistryRecords.filter((record) => record.registryId === "healthcare")} />
+                <FacilityMarkerLayer records={filteredRegistryRecords.filter((record) => record.registryId === "healthcare")} language={language} />
                 {filteredRegistryRecords.filter((record) => record.registryId !== "healthcare").map((record) => <CircleMarker key={record.id} center={[record.latitude, record.longitude]} radius={6} pathOptions={{ color: "#315f9a", fillColor: "#4d83bd", fillOpacity: 0.85, weight: 1.5 }}><Popup><strong>{String(record.values.name ?? "Об’єкт реєстру")}</strong><br />{REGISTRIES.find((registry) => registry.id === record.registryId)?.label}<br />{String(record.values.hromada ?? "")}</Popup></CircleMarker>)}
                 {filtered.filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude)).map((item) => <CircleMarker key={item.id} center={[item.latitude as number, item.longitude as number]} radius={selected?.id === item.id ? 10 : 7} pathOptions={{ color: item.status === "Підтверджено" ? "#126b58" : "#d28a24", fillColor: item.status === "Підтверджено" ? "#21866d" : "#e6a744", fillOpacity: 0.88, weight: selected?.id === item.id ? 3 : 1.5 }} eventHandlers={{ click: () => setSelected(item) }}><Popup><strong>{item.disease}</strong><br />{item.settlement || item.hromada}<br />{item.date}<br />{item.status}</Popup></CircleMarker>)}
               </MapContainer>
@@ -1459,4 +1459,4 @@ export default function App() {
 
 function Metric({ icon, label, value, note }: { icon: React.ReactNode; label: string; value: string; note: string }) {
   return <div className="metric-card"><div className="metric-icon">{icon}</div><div className="metric-label">{label}</div><div className="metric-value">{value}</div><div className="metric-note">{note}</div></div>;
-}
+,\n  "Громада": "Community",\n  "Джерело": "Source"}
