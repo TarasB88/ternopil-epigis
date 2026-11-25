@@ -664,6 +664,20 @@ const UI_TRANSLATIONS: Record<string, string> = {
   "Громада": "Community",
 };
 
+function translateGeometryType(value: unknown, language: "uk" | "en"): string {
+  const types: Record<string, { uk: string; en: string }> = {
+    Point: { uk: "Точка", en: "Point" },
+    MultiPoint: { uk: "Мультиточка", en: "MultiPoint" },
+    LineString: { uk: "Лінія", en: "Line" },
+    MultiLineString: { uk: "Мультилінія", en: "MultiLineString" },
+    Polygon: { uk: "Полігон", en: "Polygon" },
+    MultiPolygon: { uk: "Мультиполігон", en: "MultiPolygon" },
+    GeometryCollection: { uk: "Колекція геометрій", en: "Geometry collection" }
+  };
+  const key = String(value ?? "");
+  return types[key]?.[language] ?? key || "—";
+}
+
 function translateUI(value: string, language: "uk" | "en"): string {
   return language === "en" ? (UI_TRANSLATIONS[value] ?? value) : value;
 }
@@ -1539,7 +1553,7 @@ export default function App() {
                     const properties = feature?.properties ?? {};
                     const label = properties.name ?? properties.NAME ?? properties.НАЗВА ?? properties.id ?? `Об’єкт ${index + 1}`;
                     const attributes = Object.entries(properties).filter(([key]) => !key.startsWith("_epigis_")).slice(0, 5).map(([key, value]) => `${key}: ${typeof value === "object" ? JSON.stringify(value) : String(value ?? "")}`).join(" · ");
-                    return <tr key={`${index}-${String(label)}`}><td>{index + 1}</td><td>{String(label)}</td><td>{feature?.geometry?.type ?? "—"}</td><td>{Number(properties._epigis_intersection_count ?? 0)}</td><td>{attributes || "Немає атрибутів"}</td></tr>;
+                    return <tr key={`${index}-${String(label)}`}><td>{index + 1}</td><td>{String(label)}</td><td>{translateGeometryType(feature?.geometry?.type, language)}</td><td>{Number(properties._epigis_intersection_count ?? 0)}</td><td>{attributes || "Немає атрибутів"}</td></tr>;
                   })}
                 </tbody></table></div>
                 <p className="layer-empty">Таблиця відображає геометричні перетини, а не підтверджений епідеміологічний зв’язок. Для повного набору атрибутів експортуй GeoJSON відповідного шару.</p>
