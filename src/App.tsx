@@ -356,7 +356,11 @@ export default function App() {
       setSelected(null);
       const caseSummary = caseRows === null ? " Випадки не змінювалися." : " Випадки: " + caseCount + " (відхилено: " + invalidCases + ").";
       const registrySummary = replacedRegistryIds.length ? " Предметні реєстри: " + importedRegistryRecords.length + " записів у " + replacedRegistryIds.length + " аркушах." : " Предметні реєстри не змінювалися.";
-      const layerSummary = geoRows !== null ? " Геошари: " + importedLayers + " шарів." : " Геошари не змінювалися.";
+      const layerSummary = geoRows === null
+        ? " Геошари не змінювалися."
+        : invalidLayers > 0
+          ? " Геошари не оновлено через помилки GeoJSON; попередні шари збережено."
+          : " Геошари: " + importedLayers + " шарів.";
       setMessage("Імпорт завершено." + caseSummary + registrySummary + layerSummary +
         (invalidRegistryRows || invalidLayers ? " Некоректні рядки реєстрів/геошарів: " + invalidRegistryRows + "/" + invalidLayers + "." : "") +
         caseImportWarning + " Дані збережено в локальному сховищі цього браузера.");
@@ -615,6 +619,21 @@ export default function App() {
       ["Конфіденційність", "Обмеження використання", "Не завантажуй персональні чи медично ідентифіковані дані. Населення внось лише агреговано. Серверної синхронізації між користувачами у цій версії немає."]
     ];
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(infoRows), "Instructions");
+
+    const dictionaryRows: unknown[][] = [
+      ["Аркуш", "Поле Excel", "Назва поля", "Тип даних", "Обов’язкове", "Допустимі значення / пояснення"],
+      ...TEMPLATE_HEADERS.map((key) => ["Cases", key, key, key === "latitude" || key === "longitude" || key === "age" ? "Число" : key === "date" ? "Дата YYYY-MM-DD" : "Текст", ["disease", "date", "hromada", "latitude", "longitude"].includes(key) ? "Так" : "Ні", "Зберігається чинна структура аркуша Cases"]),
+      ...REGISTRIES.flatMap((registry) => [
+        ...registry.fields.map((field) => [REGISTRY_SHEET_NAMES[registry.id], field.key, field.label, field.type, field.required ? "Так" : "Ні", (field.options ?? []).join(" / ") ]),
+        [REGISTRY_SHEET_NAMES[registry.id], "latitude", "Широта", "Число", "Так", "Десяткові градуси WGS84, від -90 до 90"],
+        [REGISTRY_SHEET_NAMES[registry.id], "longitude", "Довгота", "Число", "Так", "Десяткові градуси WGS84, від -180 до 180"],
+        [REGISTRY_SHEET_NAMES[registry.id], "record_id", "Службовий ID запису", "Текст", "Ні", "Можна залишити порожнім; система сформує ID автоматично"]
+      ]),
+      ["GeoLayers", "geojson_chunk", "Фрагмент GeoJSON", "Текст", "Так", "Службова структура; зберігає точки, лінії, полігони, буфери та інші геошари"],
+      ["GeoLayers", "layer_id", "ID шару", "Текст", "Так", "Не змінюй вручну"],
+      ["GeoLayers", "chunk_index / chunk_count", "Номер і кількість частин", "Число", "Так", "Не змінюй вручну"]
+    ];
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(dictionaryRows), "DataDictionary");
     XLSX.writeFile(workbook, "ternopil-epigis-data-store.xlsx");
   };
 
