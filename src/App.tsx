@@ -711,7 +711,7 @@ function localizeNode(node: React.ReactNode, language: "uk" | "en"): React.React
   if (Array.isArray(node)) return node.map((child) => localizeNode(child, language));
   if (isValidElement(node)) {
     const props: Record<string, unknown> = { ...node.props };
-    for (const key of ["placeholder", "title", "aria-label", "label", "description"]) {
+    for (const key of ["placeholder", "title", "aria-label", "label", "description", "note"]) {
       if (typeof props[key] === "string") props[key] = UI_TRANSLATIONS[props[key] as string] ?? props[key];
     }
     // Translate only explicit UI option arrays; never alter arbitrary record data.
