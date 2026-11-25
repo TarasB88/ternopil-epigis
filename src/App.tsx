@@ -107,6 +107,7 @@ function FacilityMarkerLayer({ records, language }: { records: RegistryRecord[];
   useEffect(() => {
     const layer = L.layerGroup().addTo(map);
     const render = () => {
+      const translate = (value: string) => language === "en" ? (UI_TRANSLATIONS[value] ?? value) : value;
       layer.clearLayers();
       const size = map.getSize();
       const zoom = map.getZoom();
@@ -199,17 +200,17 @@ function FacilityMarkerLayer({ records, language }: { records: RegistryRecord[];
         heading.textContent = name;
         popup.appendChild(heading);
         const details: Array<[string, unknown]> = [
-          ["Тип", record.values.facility_type || symbol.label],
-          ["Адреса", record.values.address],
-          ["Населений пункт", record.values.settlement],
-          ["Громада", record.values.hromada],
-          ["Форма власності", record.values.ownership],
-          ["ЄДРПОУ", record.values.edrpou],
-          ["Телефон", record.values.phone],
-          ["Електронна пошта", record.values.email],
-          ["ID місця надання послуг НСЗУ", record.values.division_id],
-          ["Джерело", record.values.source],
-          ["Дата оновлення джерела", record.values.source_updated_at]
+          [translate("Тип"), record.values.facility_type || translate(symbol.label)],
+          [translate("Адреса"), record.values.address],
+          [translate("Населений пункт"), record.values.settlement],
+          [translate("Громада"), record.values.hromada],
+          [translate("Форма власності"), record.values.ownership],
+          [translate("ЄДРПОУ"), record.values.edrpou],
+          [translate("Телефон"), record.values.phone],
+          [translate("Електронна пошта"), record.values.email],
+          [translate("ID місця надання послуг НСЗУ"), record.values.division_id],
+          [translate("Джерело"), record.values.source],
+          [translate("Дата оновлення джерела"), record.values.source_updated_at]
         ];
         details.forEach(([label, value]) => {
           if (value === undefined || value === null || String(value).trim() === "") return;
