@@ -118,7 +118,7 @@ function toCase(row: Record<string, unknown>, index: number): CaseRecord | null 
   const normalizedEntries = Object.entries(row).map(([key, value]) => [normalizeHeaderKey(key), value] as const);
   const get = (...keys: string[]) => {
     const aliases = new Set(keys.map(normalizeHeaderKey));
-    const found = normalizedEntries.find(([key, value]) => aliases.has(key) && value !== undefined && value !== null && String(value).trim() !== "");
+    const found = normalizedEntries.find(([key, value]) => Array.from(aliases).some((alias) => key === alias || (alias.length >= 4 && key.startsWith(alias))) && value !== undefined && value !== null && String(value).trim() !== "");
     return found?.[1];
   };
   const latitude = parseSpreadsheetNumber(get("latitude", "lat", "широта", "координата широти", "широта gps"));
@@ -257,7 +257,7 @@ export default function App() {
           const scanLimit = Math.min(matrix.length, 20);
           for (let rowIndex = 0; rowIndex < scanLimit; rowIndex += 1) {
             const cells = new Set((matrix[rowIndex] ?? []).map(normalizeHeaderKey).filter(Boolean));
-            const score = headerGroups.filter((group) => group.some((alias) => cells.has(normalizeHeaderKey(alias)))).length;
+            const score = headerGroups.filter((group) => group.some((alias) => Array.from(cells).some((cell) => cell === normalizeHeaderKey(alias) || (normalizeHeaderKey(alias).length >= 4 && cell.startsWith(normalizeHeaderKey(alias)))))).length;
             if (score > bestScore) {
               bestScore = score;
               headerRow = rowIndex;
@@ -321,7 +321,11 @@ export default function App() {
         rows.forEach((row, index) => {
           const getValue = (...keys: string[]) => {
             for (const key of keys) {
-              const found = Object.keys(row).find((candidate) => normalizeHeaderKey(candidate) === normalizeHeaderKey(key));
+              const normalizedKey = normalizeHeaderKey(key);
+              const found = Object.keys(row).find((candidate) => {
+                const normalizedCandidate = normalizeHeaderKey(candidate);
+                return normalizedCandidate === normalizedKey || (normalizedKey.length >= 4 && normalizedCandidate.startsWith(normalizedKey));
+              });
               if (found !== undefined && row[found] !== undefined && row[found] !== "") return row[found];
             }
             return undefined;
