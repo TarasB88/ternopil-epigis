@@ -696,8 +696,8 @@ function translateSystemMessage(value: string, language: "uk" | "en"): string {
       .replace(" Предметні реєстри: ", " Thematic registries: ").replace(" записів у ", " records across ").replace(" аркушах.", " worksheets.")
       .replace(" Геошари: ", " Geographic layers: ").replace(" шарів.", " layers.")
       .replace(" Некоректні рядки реєстрів/геошарів: ", " Invalid registry/geographic-layer rows: ")
-      .replace("Аркуш Cases містить лише демонстраційний рядок CASE-0001 (\\\"Приклад — замінити даними\\\"). Його пропущено; додай реальні записи починаючи з наступного рядка. Попередні випадки збережено.", UI_TRANSLATIONS["Аркуш Cases містить лише демонстраційний рядок CASE-0001 (\\\"Приклад — замінити даними\\\"). Його пропущено; додай реальні записи починаючи з наступного рядка. Попередні випадки збережено."] ?? "The Cases sheet contains a demonstration row; it was skipped.")
-      .replace("Аркуш випадків знайдено, але жоден рядок не пройшов перевірку обов’язкових полів disease і date. Перевір значення у рядках; заголовки: ", "The Cases sheet was found, but no row passed validation of the required disease and date fields. Check the row values; detected headers: ");
+      .replace(/Аркуш Cases містить лише демонстраційний рядок CASE-0001 \("Приклад — замінити даними"\)\. Його пропущено; додай реальні записи починаючи з наступного рядка\. Попередні випадки збережено\./, "The Cases sheet contains only the demonstration row CASE-0001 (\"Example — replace with data\"). It was skipped; add real records starting from the next row. Previous cases were preserved.")
+      .replace(/Аркуш випадків знайдено, але жоден рядок не пройшов перевірку обов’язкових полів disease і date\. Перевір значення у рядках; заголовки: /, "The Cases sheet was found, but no row passed validation of the required disease and date fields. Check the row values; detected headers: ");
   }
   return value;
 }
