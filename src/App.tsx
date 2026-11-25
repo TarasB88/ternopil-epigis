@@ -623,7 +623,7 @@ export default function App() {
         (invalidRegistryRows || invalidLayers ? " Некоректні рядки реєстрів/геошарів: " + invalidRegistryRows + "/" + invalidLayers + "." : "") +
         caseImportWarning + " Дані збережено в локальному сховищі цього браузера.");
     } catch {
-      setMessage("Не вдалося прочитати книгу. Перевір формат і назви аркушів; підтримуються XLSX, XLS та CSV із сумісною структурою випадків.");
+      setMessage("Не вдалося прочитати книгу. Перевір формат і заголовки; підтримуються книги EpiGIS, CSV НСЗУ з місцями надання послуг та таблиці випадків.");
     }
   };
 
@@ -915,7 +915,7 @@ export default function App() {
         {message && <div className="notice"><AlertTriangle size={16} /><span>{message}</span><button aria-label="Закрити повідомлення" onClick={() => setMessage("")}><X size={15} /></button></div>}
 
         {showUpload && <section className="upload-panel">
-          <div className="upload-copy"><FileSpreadsheet size={22} /><div><strong>Імпорт повної книги EpiGIS</strong><p>Excel-книга з випадками, 8 предметними реєстрами та геошарами. Аркуші із заповненими рядками оновлять відповідні набори; порожні або відсутні аркуші не змінюються.</p></div></div>
+          <div className="upload-copy"><FileSpreadsheet size={22} /><div><strong>Імпорт книги EpiGIS або CSV НСЗУ</strong><p>Можна завантажити повну Excel-книгу EpiGIS або безпосередньо pmg_legal_entity_divisions_info.csv. Для CSV система відбере активні місця надання послуг Тернопільської області, зіставить поля та імпортує записи з валідними координатами.</p></div></div>
           <div className="upload-actions"><input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={(event) => importFile(event.target.files?.[0])} /><button className="button button-light" onClick={downloadTemplate}><Download size={15} /> Завантажити шаблон / сховище</button></div>
         </section>}
 
