@@ -41,6 +41,7 @@ const DISEASES = ["Усі нозології", ...Array.from(new Set(DEMO_CASES.
 const TEMPLATE_HEADERS = ["id", "disease", "date", "hromada", "settlement", "latitude", "longitude", "status", "age", "sex", "notes"];
 const REGISTRY_SHEET_NAMES: Record<string, string> = { healthcare: "Healthcare", water: "Water", food: "Food", natural: "Natural", outbreaks: "Outbreaks", "bio-monitoring": "BioMonitoring", meteorology: "Meteorology", population: "Population" };
 const GEO_LAYERS_SHEET = "GeoLayers";
+const CASE_REGISTRY = { id: "cases", label: "Реєстр випадків", description: "Випадки інфекційних захворювань. Дані ведуться в окремому реєстрі випадків і на аркуші Cases; не змішуються з предметними реєстрами.", geometry: "Point" as const, fields: [] };
 
 function FitToCases({ cases }: { cases: CaseRecord[] }) {
   const map = useMap();
@@ -654,7 +655,7 @@ export default function App() {
       const layer: GISLayer = {
         id: `layer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         name: file.name.replace(/\.(geojson|json)$/i, ""),
-        category: REGISTRIES.find((registry) => registry.id === activeRegistryId)?.label ?? "Імпортовані дані",
+        category: activeRegistryId === "cases" ? CASE_REGISTRY.label : (REGISTRIES.find((registry) => registry.id === activeRegistryId)?.label ?? "Імпортовані дані"),
         visible: true,
         data: { type: "FeatureCollection", features: supported },
         source: file.name,
@@ -669,7 +670,7 @@ export default function App() {
     }
   };
 
-  const activeRegistry = REGISTRIES.find((registry) => registry.id === activeRegistryId) ?? REGISTRIES[0];
+  const activeRegistry = activeRegistryId === "cases" ? CASE_REGISTRY : (REGISTRIES.find((registry) => registry.id === activeRegistryId) ?? REGISTRIES[0]);
   const activeRegistryRecords = registryRecords.filter((record) => record.registryId === activeRegistryId);
   const registryFilterDefinition = REGISTRIES.find((registry) => registry.id === registryFilterId);
   const registryTypeField = registryFilterId === "cases"
@@ -968,12 +969,12 @@ export default function App() {
             <div className="sidebar-divider" />
             <div className="legend-title"><Layers3 size={15} /> Предметні реєстри</div>
             <label className="field-label">Тип реєстру для наступного GeoJSON-імпорту</label>
-            <div className="select-wrap"><select value={activeRegistryId} onChange={(event) => setActiveRegistryId(event.target.value)}>{REGISTRIES.map((registry) => <option key={registry.id} value={registry.id}>{registry.label}</option>)}</select><ChevronDown size={15} /></div>
-            <p className="layer-empty">{REGISTRIES.find((registry) => registry.id === activeRegistryId)?.description}</p>
-            <div className="registry-catalog">{REGISTRIES.map((registry) => <div className="registry-catalog-item" key={registry.id}><strong>{registry.label}</strong><span>{registry.fields.length} атрибутів · {registry.geometry === "mixed" ? "різні геометрії" : registry.geometry}</span></div>)}</div>
+            <div className="select-wrap"><select value={activeRegistryId} onChange={(event) => { setActiveRegistryId(event.target.value); setRegistryFormOpen(false); setEditingRegistryRecordId(""); }}>{<option value="cases">Реєстр випадків</option>}{REGISTRIES.map((registry) => <option key={registry.id} value={registry.id}>{registry.label}</option>)}</select><ChevronDown size={15} /></div>
+            <p className="layer-empty">{activeRegistry.description}</p>
+            <div className="registry-catalog"><div className="registry-catalog-item"><strong>Реєстр випадків</strong><span>{cases.length} записів · окремий набір даних</span></div>{REGISTRIES.map((registry) => <div className="registry-catalog-item" key={registry.id}><strong>{registry.label}</strong><span>{registry.fields.length} атрибутів · {registry.geometry === "mixed" ? "різні геометрії" : registry.geometry}</span></div>)}</div>
             <div className="sidebar-divider" />
             <div className="legend-title"><FileSpreadsheet size={15} /> Реєстр: {activeRegistry.label}</div>
-            <div className="registry-record-toolbar"><span>{activeRegistryRecords.length} записів</span><button className="button button-light" onClick={openNewRegistryRecord}>+ Додати запис</button></div>
+            {activeRegistryId === "cases" ? <div className="layer-empty">Реєстр випадків доступний у таблиці «Реєстр випадків» нижче та через аркуш Cases в Excel-сховищі. Записи випадків не дублюються в предметних реєстрах.</div> : <><div className="registry-record-toolbar"><span>{activeRegistryRecords.length} записів</span><button className="button button-light" onClick={openNewRegistryRecord}>+ Додати запис</button></div>
             {registryFormOpen && <form className="registry-form" onSubmit={saveRegistryRecord}>
               <strong>{editingRegistryRecordId ? "Редагування запису" : "Новий запис"}</strong>
               {activeRegistry.fields.map((field) => <label className="field-label" key={field.key}>{field.label}{field.required ? " *" : ""}
@@ -984,7 +985,7 @@ export default function App() {
               <div className="registry-form-actions"><button className="button button-primary" type="submit">Зберегти</button><button className="button button-light" type="button" onClick={() => setRegistryFormOpen(false)}>Скасувати</button></div>
             </form>}
             <div className="registry-record-list">{activeRegistryRecords.map((record) => <div className="registry-record" key={record.id}><div><strong>{String(record.values.name ?? record.values.object_id ?? "Об'єкт без назви")}</strong><span>{String(record.values.hromada ?? "Громаду не вказано")} · {record.latitude.toFixed(4)}, {record.longitude.toFixed(4)}</span></div><button className="layer-export" title="Редагувати запис" onClick={() => openEditRegistryRecord(record)}><Pencil size={13} /></button><button className="layer-remove" title="Видалити запис" onClick={() => deleteRegistryRecord(record.id)}><X size={13} /></button></div>)}</div>
-            <p className="layer-empty">Записи зберігаються локально в цьому браузері. Координати використовуються для відображення точок на карті. Для ліній і полігонів імпортуй GeoJSON.</p>
+            <p className="layer-empty">Записи зберігаються локально в цьому браузері. Координати використовуються для відображення точок на карті. Для ліній і полігонів імпортуй GeoJSON.</p></>}
             <div className="sidebar-divider" />
             <div className="legend-title"><Layers3 size={15} /> Географічні шари <span className="layer-count">{gisLayers.length}</span></div>
             <button className="button button-light layer-import-button" onClick={() => layerFileRef.current?.click()}><Upload size={14} /> Додати GeoJSON</button>
