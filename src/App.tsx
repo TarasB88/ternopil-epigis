@@ -588,7 +588,17 @@ const UI_TRANSLATIONS: Record<string, string> = {
   "Підкладка карти": "Map basemap",
   "Формат експорту карти": "Map export format",
   "Створення…": "Creating…",
-  "Зберегти карту": "Save map",
+  "Зберегти карту": "Save map",,
+  "Демонстраційні дані — не реальні випадки.": "Demonstration data — not real cases.",
+  "атрибутів · різні геометрії": "attributes · mixed geometries",
+  "PNG": "PNG",
+  "JPEG": "JPEG",
+  "PDF": "PDF",
+  "об’єктів": "objects",
+  "ID": "ID",
+  " записів. Експорт містить усю вибірку.": " records. Export includes the full selection.",
+  " об’єктів. Повні дані містяться в Excel-сховищі.": " objects. Full data is available in the Excel data store.",
+  " об'єктів": " objects",
 };
 
 function localizeNode(node: React.ReactNode, language: "uk" | "en"): React.ReactNode {
