@@ -39,6 +39,8 @@ const DEMO_CASES: CaseRecord[] = [
 
 const DISEASES = ["Усі нозології", ...Array.from(new Set(DEMO_CASES.map((item) => item.disease)))];
 const TEMPLATE_HEADERS = ["id", "disease", "date", "hromada", "settlement", "latitude", "longitude", "status", "age", "sex", "notes"];
+const REGISTRY_SHEET_NAMES: Record<string, string> = { healthcare: "Healthcare", water: "Water", food: "Food", natural: "Natural", outbreaks: "Outbreaks", "bio-monitoring": "BioMonitoring", meteorology: "Meteorology", population: "Population" };
+const GEO_LAYERS_SHEET = "GeoLayers";
 
 function FitToCases({ cases }: { cases: CaseRecord[] }) {
   const map = useMap();
@@ -135,7 +137,7 @@ function hasValidGeoJSONCoordinates(value: unknown): boolean {
 }
 
 export default function App() {
-  const [cases, setCases] = useState<CaseRecord[]>(DEMO_CASES);
+  const [cases, setCases] = useState<CaseRecord[]>(() => { try { const saved = localStorage.getItem("ternopil-epigis-cases-v1"); return saved ? JSON.parse(saved) as CaseRecord[] : DEMO_CASES; } catch { return DEMO_CASES; } });
   const [gisLayers, setGisLayers] = useState<GISLayer[]>(() => {
     try { const saved = localStorage.getItem("ternopil-epigis-layers-v1"); return saved ? JSON.parse(saved) as GISLayer[] : []; } catch { return []; }
   });
@@ -164,7 +166,17 @@ export default function App() {
   const [message, setMessage] = useState("Демонстраційні дані — не реальні випадки.");
   const [showUpload, setShowUpload] = useState(false);
   const [onlyConfirmed, setOnlyConfirmed] = useState(false);
+  const [registryFilterId, setRegistryFilterId] = useState("all");
+  const [registryCommunityFilter, setRegistryCommunityFilter] = useState("Усі громади");
+  const [registryTypeFilter, setRegistryTypeFilter] = useState("Усі типи");
+  const [registrySearch, setRegistrySearch] = useState("");
+  const [registryFromDate, setRegistryFromDate] = useState("");
+  const [registryToDate, setRegistryToDate] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    try { localStorage.setItem("ternopil-epigis-cases-v1", JSON.stringify(cases)); } catch { setLayerMessage("Не вдалося зберегти випадки: сховище браузера переповнене або недоступне."); }
+  }, [cases]);
 
   useEffect(() => {
     try { localStorage.setItem("ternopil-epigis-registry-records-v1", JSON.stringify(registryRecords)); } catch { setLayerMessage("Не вдалося зберегти реєстр: сховище браузера переповнене або недоступне."); }
@@ -215,20 +227,132 @@ export default function App() {
     try {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
-      const parsed = rows.map(toCase).filter((item): item is CaseRecord => item !== null);
-      if (!parsed.length) {
-        setMessage("Не знайдено валідних рядків. Перевір назви колонок та координати (latitude/longitude).");
+      const readRows = (sheetName: string): Record<string, unknown>[] | null => {
+        const sheet = workbook.Sheets[sheetName];
+        return sheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" }) : null;
+      };
+      const hasCasesSheet = workbook.SheetNames.includes("Cases");
+      const isLegacySingleSheet = !hasCasesSheet && workbook.SheetNames.length === 1;
+      const caseRows = hasCasesSheet ? (readRows("Cases") ?? []) : isLegacySingleSheet ? (readRows(workbook.SheetNames[0]) ?? []) : null;
+      let caseCount = 0;
+      let invalidCases = 0;
+      let caseImportWarning = "";
+      if (caseRows !== null) {
+        const actualCaseRows = caseRows.filter((row) => {
+          const id = String(row.id ?? row.ID ?? "").trim();
+          const notes = String(row.notes ?? row.примітки ?? "").toLocaleLowerCase("uk-UA");
+          return !(id === "CASE-0001" && (notes.includes("приклад") || notes.includes("зразок")));
+        });
+        const parsedCases = actualCaseRows.map(toCase).filter((item): item is CaseRecord => item !== null);
+        if (caseRows.length === 0 || parsedCases.length > 0) {
+          setCases(parsedCases);
+          caseCount = parsedCases.length;
+          invalidCases = actualCaseRows.length - parsedCases.length;
+        } else {
+          caseImportWarning = " Аркуш випадків не пройшов перевірку; попередні випадки збережено.";
+        }
+      }
+
+      const replacedRegistryIds: string[] = [];
+      const importedRegistryRecords: RegistryRecord[] = [];
+      let invalidRegistryRows = 0;
+      REGISTRIES.forEach((registry) => {
+        const sheetName = REGISTRY_SHEET_NAMES[registry.id];
+        const rows = readRows(sheetName);
+        if (rows === null) return;
+        replacedRegistryIds.push(registry.id);
+        rows.forEach((row, index) => {
+          const getValue = (...keys: string[]) => {
+            for (const key of keys) {
+              const found = Object.keys(row).find((candidate) => candidate.trim().toLocaleLowerCase("uk-UA") === key.toLocaleLowerCase("uk-UA"));
+              if (found !== undefined && row[found] !== undefined && row[found] !== "") return row[found];
+            }
+            return undefined;
+          };
+          const latitude = Number(getValue("latitude", "широта"));
+          const longitude = Number(getValue("longitude", "довгота"));
+          const values: Record<string, string | number> = {};
+          registry.fields.forEach((field) => {
+            const raw = getValue(field.key, field.label);
+            if (raw === undefined || raw === null || raw === "") return;
+            if (field.type === "number") {
+              const numeric = Number(raw);
+              if (Number.isFinite(numeric)) values[field.key] = numeric;
+            } else if (field.type === "date") {
+              values[field.key] = normalizeDate(raw);
+            } else {
+              values[field.key] = String(raw).trim();
+            }
+          });
+          const validCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude) && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
+          const hasRequired = registry.fields.filter((field) => field.required).every((field) => values[field.key] !== undefined && String(values[field.key]).trim() !== "");
+          if (!validCoordinates || !hasRequired) { invalidRegistryRows += 1; return; }
+          const fallbackId = registry.id + ":" + String(values.object_id ?? values.name ?? "record") + ":" + index;
+          importedRegistryRecords.push({
+            id: String(getValue("record_id", "recordId", "_record_id") ?? fallbackId),
+            registryId: registry.id,
+            values,
+            latitude,
+            longitude,
+            createdAt: String(getValue("created_at", "createdAt") ?? new Date().toISOString())
+          });
+        });
+      });
+      if (replacedRegistryIds.length) {
+        setRegistryRecords((current) => [
+          ...current.filter((record) => !replacedRegistryIds.includes(record.registryId)),
+          ...importedRegistryRecords
+        ]);
+      }
+
+      let importedLayers = 0;
+      let invalidLayers = 0;
+      const geoRows = readRows(GEO_LAYERS_SHEET);
+      if (geoRows !== null) {
+        const grouped = new Map<string, { meta: Record<string, unknown>; chunks: Array<{ index: number; value: string }> }>();
+        geoRows.forEach((row, index) => {
+          const layerId = String(row.layer_id ?? row.id ?? "").trim() || ("excel-layer-" + index);
+          const chunk = String(row.geojson_chunk ?? row.geojson ?? row.feature_collection ?? "").trim();
+          const group = grouped.get(layerId) ?? { meta: row, chunks: [] };
+          if (chunk) group.chunks.push({ index: Number(row.chunk_index ?? index), value: chunk });
+          grouped.set(layerId, group);
+        });
+        const layers: GISLayer[] = [];
+        grouped.forEach((group, layerId) => {
+          try {
+            const jsonText = group.chunks.sort((x, y) => x.index - y.index).map((item) => item.value).join("");
+            const data = JSON.parse(jsonText);
+            if (!data || data.type !== "FeatureCollection" || !Array.isArray(data.features)) throw new Error("Invalid FeatureCollection");
+            layers.push({
+              id: layerId,
+              name: String(group.meta.layer_name ?? group.meta.name ?? "Географічний шар"),
+              category: String(group.meta.category ?? "Імпортовані дані"),
+              visible: !["false", "0", "ні", "no"].includes(String(group.meta.visible ?? "true").toLocaleLowerCase("uk-UA")),
+              data,
+              source: String(group.meta.source ?? "Імпорт із Excel"),
+              importedAt: String(group.meta.imported_at ?? group.meta.importedAt ?? new Date().toISOString())
+            });
+          } catch { invalidLayers += 1; }
+        });
+        setGisLayers(layers);
+        importedLayers = layers.length;
+      }
+
+      if (caseRows === null && replacedRegistryIds.length === 0 && geoRows === null) {
+        setMessage("У книзі не знайдено аркушів, сумісних з імпортом EpiGIS.");
         return;
       }
-      setCases(parsed);
       setDisease("Усі нозології");
       setHromada("Усі громади");
       setSelected(null);
-      setMessage(`Імпортовано ${parsed.length} записів із ${rows.length}. Відхилено: ${rows.length - parsed.length}.`);
+      const caseSummary = caseRows === null ? " Випадки не змінювалися." : " Випадки: " + caseCount + " (відхилено: " + invalidCases + ").";
+      const registrySummary = replacedRegistryIds.length ? " Предметні реєстри: " + importedRegistryRecords.length + " записів у " + replacedRegistryIds.length + " аркушах." : " Предметні реєстри не змінювалися.";
+      const layerSummary = geoRows !== null ? " Геошари: " + importedLayers + " шарів." : " Геошари не змінювалися.";
+      setMessage("Імпорт завершено." + caseSummary + registrySummary + layerSummary +
+        (invalidRegistryRows || invalidLayers ? " Некоректні рядки реєстрів/геошарів: " + invalidRegistryRows + "/" + invalidLayers + "." : "") +
+        caseImportWarning + " Дані збережено в локальному сховищі цього браузера.");
     } catch {
-      setMessage("Не вдалося прочитати файл. Спробуй XLSX, XLS або CSV.");
+      setMessage("Не вдалося прочитати книгу. Перевір формат і назви аркушів; підтримуються XLSX, XLS та CSV із сумісною структурою випадків.");
     }
   };
 
@@ -270,6 +394,21 @@ export default function App() {
 
   const activeRegistry = REGISTRIES.find((registry) => registry.id === activeRegistryId) ?? REGISTRIES[0];
   const activeRegistryRecords = registryRecords.filter((record) => record.registryId === activeRegistryId);
+  const registryFilterDefinition = REGISTRIES.find((registry) => registry.id === registryFilterId);
+  const registryTypeField = registryFilterDefinition?.fields.find((field) => field.key.endsWith("_type") || ["disease", "organism", "life_stage", "risk_group"].includes(field.key));
+  const registryTypeOptions = registryFilterId === "all" || !registryTypeField ? [] : Array.from(new Set(registryRecords.filter((record) => record.registryId === registryFilterId).map((record) => String(record.values[registryTypeField.key] ?? "")).filter(Boolean))).sort();
+  const registryCommunityOptions = ["Усі громади", ...Array.from(new Set(registryRecords.map((record) => String(record.values.hromada ?? "")).filter(Boolean))).sort()];
+  const filteredRegistryRecords = registryRecords.filter((record) => {
+    if (registryFilterId !== "all" && record.registryId !== registryFilterId) return false;
+    if (registryCommunityFilter !== "Усі громади" && String(record.values.hromada ?? "") !== registryCommunityFilter) return false;
+    if (registryTypeFilter !== "Усі типи" && registryTypeField && record.registryId === registryFilterId && String(record.values[registryTypeField.key] ?? "") !== registryTypeFilter) return false;
+    const dateValue = String(record.values.detected_at ?? record.values.sample_date ?? record.values.observed_at ?? record.values.updated_at ?? "").slice(0, 10);
+    if (registryFromDate && (!dateValue || dateValue < registryFromDate)) return false;
+    if (registryToDate && (!dateValue || dateValue > registryToDate)) return false;
+    const registryName = REGISTRIES.find((registry) => registry.id === record.registryId)?.label ?? "";
+    const searchable = [registryName, ...Object.values(record.values).map((value) => String(value ?? ""))].join(" ").toLocaleLowerCase("uk-UA");
+    return !registrySearch || searchable.includes(registrySearch.toLocaleLowerCase("uk-UA"));
+  });
   const openNewRegistryRecord = () => { setEditingRegistryRecordId(""); setRegistryFormValues({ updated_at: new Date().toISOString().slice(0, 10) }); setRegistryFormOpen(true); };
   const openEditRegistryRecord = (record: RegistryRecord) => { setEditingRegistryRecordId(record.id); setRegistryFormValues({ ...Object.fromEntries(Object.entries(record.values).map(([key, value]) => [key, String(value)])), latitude: String(record.latitude), longitude: String(record.longitude) }); setRegistryFormOpen(true); };
   const saveRegistryRecord = (event: React.FormEvent<HTMLFormElement>) => {
@@ -429,12 +568,46 @@ export default function App() {
   };
 
   const downloadTemplate = () => {
-    const worksheet = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, ["CASE-0001", "Хвороба Лайма", "2026-05-12", "Тернопільська міська", "Тернопіль", 49.5535, 25.5948, "Підтверджено", 42, "Ж", "Приклад — замінити даними"]]);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Cases");
-    XLSX.writeFile(workbook, "ternopil-epigis-import-template.xlsx");
-  };
+    const savedCases = cases.length && !cases.every((item) => item.id.startsWith("DEMO-"))
+      ? cases.map((item) => TEMPLATE_HEADERS.map((key) => (item as unknown as Record<string, unknown>)[key] ?? ""))
+      : [["CASE-0001", "Хвороба Лайма", "2026-05-12", "Тернопільська міська", "Тернопіль", 49.5535, 25.5948, "Підтверджено", 42, "Ж", "Приклад — замінити даними"]];
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, ...savedCases]), "Cases");
 
+    REGISTRIES.forEach((registry) => {
+      const headers = ["record_id", ...registry.fields.map((field) => field.key), "latitude", "longitude", "created_at"];
+      const rows = registryRecords.filter((record) => record.registryId === registry.id).map((record) =>
+        headers.map((key) => key === "record_id" ? record.id : key === "latitude" ? record.latitude : key === "longitude" ? record.longitude : key === "created_at" ? record.createdAt : record.values[key] ?? "")
+      );
+      XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([headers, ...rows]), REGISTRY_SHEET_NAMES[registry.id]);
+    });
+
+    const geoHeaders = ["layer_id", "layer_name", "category", "visible", "source", "imported_at", "chunk_index", "chunk_count", "geojson_chunk"];
+    const geoRows: unknown[][] = [];
+    gisLayers.forEach((layer) => {
+      const serialized = JSON.stringify(layer.data);
+      const chunkSize = 30000;
+      const chunks: string[] = [];
+      for (let offset = 0; offset < serialized.length; offset += chunkSize) chunks.push(serialized.slice(offset, offset + chunkSize));
+      if (!chunks.length) chunks.push(serialized);
+      chunks.forEach((chunk, index) => geoRows.push([
+        layer.id, layer.name, layer.category, layer.visible ? "TRUE" : "FALSE", layer.source, layer.importedAt, index + 1, chunks.length, chunk
+      ]));
+    });
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([geoHeaders, ...geoRows]), GEO_LAYERS_SHEET);
+
+    const infoRows = [
+      ["Аркуш", "Призначення", "Правила заповнення"],
+      ["Cases", "Випадки інфекційної захворюваності", "Чинна структура колонок не змінена. Обов’язкові поля: disease, date, hromada, latitude, longitude."],
+      ...REGISTRIES.map((registry) => [REGISTRY_SHEET_NAMES[registry.id], registry.label, "Один рядок — один об’єкт. Обов’язкові поля визначені у відповідному реєстрі; координати latitude/longitude обов’язкові."]),
+      ["GeoLayers", "GeoJSON-шари, водогони, трубопроводи, межі, буфери, ручні об'єкти та результати просторового аналізу", "Службовий аркуш. GeoJSON зберігається фрагментами у колонці geojson_chunk; не змінюй цей аркуш вручну."],
+      ["Оновлення", "Книга є робочим файловим сховищем", "Завантаж книгу, додай або відредагуй записи, потім імпортуй її в EpiGIS. Імпортуються лише ті набори даних, аркуші яких присутні у книзі."],
+      ["Збереження", "Локальне сховище браузера", "Після імпорту записи зберігаються в цьому браузері. Завантажуй актуальну книгу як резервну копію; файл можна використовувати для перенесення даних на інший пристрій."],
+      ["Конфіденційність", "Обмеження використання", "Не завантажуй персональні чи медично ідентифіковані дані. Населення внось лише агреговано. Серверної синхронізації між користувачами у цій версії немає."]
+    ];
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(infoRows), "Instructions");
+    XLSX.writeFile(workbook, "ternopil-epigis-data-store.xlsx");
+  };
 
 
   return (
@@ -456,8 +629,8 @@ export default function App() {
         {message && <div className="notice"><AlertTriangle size={16} /><span>{message}</span><button aria-label="Закрити повідомлення" onClick={() => setMessage("")}><X size={15} /></button></div>}
 
         {showUpload && <section className="upload-panel">
-          <div className="upload-copy"><FileSpreadsheet size={22} /><div><strong>Завантажити таблицю випадків</strong><p>Перший аркуш Excel або CSV. Обов’язкові поля: disease, date, hromada, latitude, longitude.</p></div></div>
-          <div className="upload-actions"><input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={(event) => importFile(event.target.files?.[0])} /><button className="button button-light" onClick={downloadTemplate}><Download size={15} /> Шаблон Excel</button></div>
+          <div className="upload-copy"><FileSpreadsheet size={22} /><div><strong>Імпорт повної книги EpiGIS</strong><p>Excel-книга з випадками, 8 предметними реєстрами та геошарами. Аркуші, що є у файлі, оновлять відповідні набори; відсутні аркуші не змінюються.</p></div></div>
+          <div className="upload-actions"><input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={(event) => importFile(event.target.files?.[0])} /><button className="button button-light" onClick={downloadTemplate}><Download size={15} /> Завантажити шаблон / сховище</button></div>
         </section>}
 
         <section className="metric-grid">
@@ -469,13 +642,24 @@ export default function App() {
 
         <section className="workspace">
           <aside className="sidebar">
-            <div className="section-title"><Filter size={17} /><h2>Фільтри</h2><button className="text-button" onClick={() => {setDisease("Усі нозології");setHromada("Усі громади");setFromDate("2026-01-01");setToDate("2026-12-31");setSearch("");setOnlyConfirmed(false);}}>Скинути</button></div>
+            <div className="section-title"><Filter size={17} /><h2>Фільтри</h2><button className="text-button" onClick={() => {setDisease("Усі нозології");setHromada("Усі громади");setFromDate("2026-01-01");setToDate("2026-12-31");setSearch("");setOnlyConfirmed(false);setRegistryFilterId("all");setRegistryCommunityFilter("Усі громади");setRegistryTypeFilter("Усі типи");setRegistrySearch("");setRegistryFromDate("");setRegistryToDate("");}}>Скинути</button></div>
             <label className="field-label">Пошук за записом або НП</label>
             <div className="search-field"><Search size={16} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Діагноз, громада, населений пункт…" /></div>
             <label className="field-label">Нозологія</label><div className="select-wrap"><select value={disease} onChange={(e) => setDisease(e.target.value)}>{diseases.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={15} /></div>
             <label className="field-label">Територіальна громада</label><div className="select-wrap"><select value={hromada} onChange={(e) => setHromada(e.target.value)}>{hromadas.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={15} /></div>
             <div className="date-fields"><div><label className="field-label"><CalendarDays size={13} /> Від дати</label><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></div><div><label className="field-label"><CalendarDays size={13} /> До дати</label><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} /></div></div>
             <label className="toggle-row"><input type="checkbox" checked={onlyConfirmed} onChange={(e) => setOnlyConfirmed(e.target.checked)} /><span className="toggle-ui" /><span>Лише підтверджені</span></label>
+            <div className="sidebar-divider" />
+            <div className="legend-title"><Filter size={15} /> Фільтри предметних реєстрів</div>
+            <label className="field-label">Тип реєстру</label>
+            <div className="select-wrap"><select value={registryFilterId} onChange={(event) => { setRegistryFilterId(event.target.value); setRegistryTypeFilter("Усі типи"); }}><option value="all">Усі реєстри</option>{REGISTRIES.map((registry) => <option key={registry.id} value={registry.id}>{registry.label}</option>)}</select><ChevronDown size={15} /></div>
+            <label className="field-label">Пошук об’єкта / атрибута</label>
+            <div className="search-field"><Search size={16} /><input value={registrySearch} onChange={(event) => setRegistrySearch(event.target.value)} placeholder="Назва, адреса, оператор, вид…" /></div>
+            <label className="field-label">Територіальна громада</label>
+            <div className="select-wrap"><select value={registryCommunityFilter} onChange={(event) => setRegistryCommunityFilter(event.target.value)}>{registryCommunityOptions.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={15} /></div>
+            {registryTypeField && registryFilterId !== "all" && <><label className="field-label">{registryTypeField.label}</label><div className="select-wrap"><select value={registryTypeFilter} onChange={(event) => setRegistryTypeFilter(event.target.value)}><option>Усі типи</option>{registryTypeOptions.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={15} /></div></>}
+            <div className="date-fields"><div><label className="field-label"><CalendarDays size={13} /> Від дати</label><input type="date" value={registryFromDate} onChange={(event) => setRegistryFromDate(event.target.value)} /></div><div><label className="field-label"><CalendarDays size={13} /> До дати</label><input type="date" value={registryToDate} onChange={(event) => setRegistryToDate(event.target.value)} /></div></div>
+            <div className="layer-empty">Знайдено об’єктів реєстрів: {filteredRegistryRecords.length}</div>
             <div className="sidebar-divider" />
             <div className="legend-title"><Layers3 size={15} /> Умовні позначення</div>
             <div className="legend-row"><span className="legend-dot confirmed" /> Підтверджений випадок</div>
@@ -546,7 +730,7 @@ export default function App() {
           </aside>
 
           <section className="map-section">
-            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{filtered.length} записів на карті</span></div><div className="top-actions"><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span></div></div>
+            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{filtered.length + filteredRegistryRecords.length} точкових записів на карті</span></div><div className="top-actions"><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span></div></div>
             <div className="map-wrap">
               <MapContainer center={[49.45, 25.55]} zoom={8} scrollWheelZoom preferCanvas={true} className="leaflet-map">
                 <DrawController mode={drawMode} onMapClick={handleMapDrawClick} />
@@ -601,10 +785,10 @@ export default function App() {
                 />)}
                 <FitToCases cases={filtered} />
                 <FitToLayer layer={gisLayers.find((layer) => layer.id === fitLayerId) ?? null} />
-                {registryRecords.map((record) => <CircleMarker key={record.id} center={[record.latitude, record.longitude]} radius={6} pathOptions={{ color: "#315f9a", fillColor: "#4d83bd", fillOpacity: 0.85, weight: 1.5 }}><Popup><strong>{String(record.values.name ?? "Об’єкт реєстру")}</strong><br />{REGISTRIES.find((registry) => registry.id === record.registryId)?.label}<br />{String(record.values.hromada ?? "")}</Popup></CircleMarker>)}
+                {filteredRegistryRecords.map((record) => <CircleMarker key={record.id} center={[record.latitude, record.longitude]} radius={6} pathOptions={{ color: "#315f9a", fillColor: "#4d83bd", fillOpacity: 0.85, weight: 1.5 }}><Popup><strong>{String(record.values.name ?? "Об’єкт реєстру")}</strong><br />{REGISTRIES.find((registry) => registry.id === record.registryId)?.label}<br />{String(record.values.hromada ?? "")}</Popup></CircleMarker>)}
                 {filtered.map((item) => <CircleMarker key={item.id} center={[item.latitude, item.longitude]} radius={selected?.id === item.id ? 10 : 7} pathOptions={{ color: item.status === "Підтверджено" ? "#126b58" : "#d28a24", fillColor: item.status === "Підтверджено" ? "#21866d" : "#e6a744", fillOpacity: 0.88, weight: selected?.id === item.id ? 3 : 1.5 }} eventHandlers={{ click: () => setSelected(item) }}><Popup><strong>{item.disease}</strong><br />{item.settlement || item.hromada}<br />{item.date}<br />{item.status}</Popup></CircleMarker>)}
               </MapContainer>
-              {filtered.length === 0 && <div className="empty-map">За вибраними параметрами записів не знайдено.</div>}
+              {filtered.length === 0 && filteredRegistryRecords.length === 0 && <div className="empty-map">За вибраними параметрами записів не знайдено.</div>}
               <div className="map-disclaimer">Координати демонстраційних записів умовні.</div>
             </div>
             {intersectionResultLayerId && gisLayers.some((layer) => layer.id === intersectionResultLayerId) && (() => {
@@ -628,6 +812,15 @@ export default function App() {
             <div className="table-scroll"><table><thead><tr><th>ID</th><th>Нозологія</th><th>Дата</th><th>Громада / НП</th><th>Статус</th></tr></thead><tbody>
               {filtered.slice(0, 100).map((item) => <tr key={item.id} className={selected?.id === item.id ? "selected-row" : ""} onClick={() => setSelected(item)}><td className="case-id">{item.id}</td><td>{item.disease}</td><td>{item.date}</td><td>{item.hromada}{item.settlement ? <small>{item.settlement}</small> : null}</td><td><span className={item.status === "Підтверджено" ? "status status-confirmed" : "status status-review"}>{item.status}</span></td></tr>)}
             </tbody></table>{filtered.length > 100 && <div className="table-foot">Показано 100 із {filtered.length} записів. Експорт містить усю вибірку.</div>}{!filtered.length && <div className="table-empty">Немає записів для відображення.</div>}</div>
+            <div className="table-heading"><div><h2>Об’єкти предметних реєстрів</h2><p>За активними фільтрами реєстрів</p></div><span>{filteredRegistryRecords.length} записів</span></div>
+            <div className="table-scroll"><table><thead><tr><th>Реєстр</th><th>Об’єкт</th><th>Громада / НП</th><th>Тип / характеристика</th><th>Дата</th></tr></thead><tbody>
+              {filteredRegistryRecords.slice(0, 100).map((record) => {
+                const registry = REGISTRIES.find((item) => item.id === record.registryId);
+                const typeField = registry?.fields.find((field) => field.key.endsWith("_type") || ["disease", "organism", "life_stage", "risk_group"].includes(field.key));
+                const dateValue = record.values.detected_at ?? record.values.sample_date ?? record.values.observed_at ?? record.values.updated_at ?? "";
+                return <tr key={record.id}><td>{registry?.label ?? record.registryId}</td><td>{String(record.values.name ?? record.values.object_id ?? "—")}</td><td>{String(record.values.hromada ?? "—")}{record.values.settlement ? <small>{String(record.values.settlement)}</small> : null}</td><td>{String((typeField && record.values[typeField.key]) ?? "—")}</td><td>{String(dateValue || "—")}</td></tr>;
+              })}
+            </tbody></table>{filteredRegistryRecords.length > 100 && <div className="table-foot">Показано 100 із {filteredRegistryRecords.length} об’єктів. Повні дані містяться в Excel-сховищі.</div>}{!filteredRegistryRecords.length && <div className="table-empty">Об’єктів для відображення немає.</div>}</div>
           </section>
 
           <aside className="detail-panel">
