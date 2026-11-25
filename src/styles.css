@@ -105,3 +105,36 @@
 .map-export-button{height:32px;padding:0 10px;font-size:10px;white-space:nowrap}
 .map-export-button:disabled{opacity:.6;cursor:wait}
 @media(max-width:760px){.map-toolbar{height:auto;min-height:57px;align-items:flex-start;gap:10px;padding:11px 12px;flex-wrap:wrap}.map-toolbar>.top-actions{width:100%;display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:7px;flex-wrap:wrap}.map-toolbar>.top-actions .map-chip{display:inline-flex;font-size:0}.map-export-select{flex:0 0 76px}.map-export-button{flex:1 1 auto}}
+
+
+/* Clear, persistent indication of the active interface language. */
+.language-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 6px 10px;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 650;
+}
+.language-switch__label { color: var(--muted, #64748b); font-weight: 500; }
+.language-switch__option { color: var(--muted, #64748b); }
+.language-switch__separator { color: #94a3b8; }
+.language-switch__active {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 7px;
+  background: #dff3ec;
+  color: #126b58;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+.language-switch--en .language-switch__active { background: #e4edff; color: #2456a6; }
+@media (max-width: 560px) {
+  .language-switch { gap: 4px; min-height: 34px; padding: 5px 7px; font-size: 11px; }
+  .language-switch__label { display: none; }
+}
