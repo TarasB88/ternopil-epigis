@@ -1266,9 +1266,9 @@ export default function App() {
       if (!resultFeatures.length) { setLayerMessage("Не вдалося побудувати буфер для вибраного шару."); return; }
       const layer: GISLayer = {
         id: `buffer-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        name: `Буфер ${meters} м — ${source.name}`,
+        name: language === "en" ? `Buffer ${meters} m — ${source.name}` : `Буфер ${meters} м — ${source.name}`,
         category: "Буферні зони", visible: true, data: { type: "FeatureCollection", features: resultFeatures },
-        source: `Буферизація шару «${source.name}»`, importedAt: new Date().toISOString()
+        source: language === "en" ? `Buffering layer “${source.name}”` : `Буферизація шару «${source.name}»`, importedAt: new Date().toISOString()
       };
       setGisLayers((current) => [...current, layer]);
       setLayerMessage(`Побудовано буфер ${meters} м для ${resultFeatures.length} об'єктів шару «${source.name}».`);
@@ -1307,11 +1307,11 @@ export default function App() {
       }
       const resultLayer: GISLayer = {
         id: `intersection-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        name: `Перетини: ${targetLayer.name} / ${zoneLayer.name}`,
+        name: language === "en" ? `Intersections: ${targetLayer.name} / ${zoneLayer.name}` : `Перетини: ${targetLayer.name} / ${zoneLayer.name}`,
         category: "Результати просторового аналізу",
         visible: true,
         data: { type: "FeatureCollection", features: matches },
-        source: `Просторовий перетин «${targetLayer.name}» із «${zoneLayer.name}»`,
+        source: language === "en" ? `Spatial intersection of “${targetLayer.name}” with “${zoneLayer.name}”` : `Просторовий перетин «${targetLayer.name}» із «${zoneLayer.name}»`,
         importedAt: new Date().toISOString()
       };
       setGisLayers((current) => [...current, resultLayer]);
@@ -1593,7 +1593,8 @@ export default function App() {
                 <div className="table-scroll"><table><thead><tr><th>№</th><th>Об’єкт</th><th>Тип геометрії</th><th>Кількість перетинів</th><th>Атрибути</th></tr></thead><tbody>
                   {features.map((feature: any, index: number) => {
                     const properties = feature?.properties ?? {};
-                    const label = properties.name ?? properties.NAME ?? properties.НАЗВА ?? properties.id ?? `Об’єкт ${index + 1}`;
+                    const rawLabel = properties.name ?? properties.NAME ?? properties.НАЗВА ?? properties.id;
+                    const label = rawLabel == null || String(rawLabel).trim() === "" ? (language === "en" ? `Feature ${index + 1}` : `Об’єкт ${index + 1}`) : rawLabel;
                     const attributes = Object.entries(properties).filter(([key]) => !key.startsWith("_epigis_")).slice(0, 5).map(([key, value]) => `${key}: ${typeof value === "object" ? JSON.stringify(value) : String(value ?? "")}`).join(" · ");
                     return <tr key={`${index}-${String(label)}`}><td>{index + 1}</td><td>{String(label)}</td><td>{translateGeometryType(feature?.geometry?.type, language)}</td><td>{Number(properties._epigis_intersection_count ?? 0)}</td><td>{attributes || "Немає атрибутів"}</td></tr>;
                   })}
