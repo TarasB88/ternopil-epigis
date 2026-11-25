@@ -324,8 +324,8 @@ export default function App() {
   const [intersectionTargetId, setIntersectionTargetId] = useState("");
   const layerFileRef = useRef<HTMLInputElement>(null);
   const [hromadaBoundaries, setHromadaBoundaries] = useState<any>(null);
-  const [disease, setDisease] = useState("Усі нозології");
-  const [hromada, setHromada] = useState("Усі громади");
+  const [selectedDiseases, setSelectedDiseases] = useState<string[]>([]);
+  const [selectedHromadas, setSelectedHromadas] = useState<string[]>([]);
   const [fromDate, setFromDate] = useState("2026-01-01");
   const [toDate, setToDate] = useState("2026-12-31");
   const [search, setSearch] = useState("");
@@ -375,15 +375,15 @@ export default function App() {
     return () => { cancelled = true; };
   }, []);
 
-  const diseases = useMemo(() => ["Усі нозології", ...Array.from(new Set(cases.map((item) => item.disease))).sort()], [cases]);
-  const hromadas = useMemo(() => ["Усі громади", ...Array.from(new Set(cases.map((item) => item.hromada))).sort()], [cases]);
+  const diseases = useMemo(() => Array.from(new Set(cases.map((item) => item.disease))).sort(), [cases]);
+  const hromadas = useMemo(() => Array.from(new Set(cases.map((item) => item.hromada))).sort(), [cases]);
   const filtered = useMemo(() => cases.filter((item) =>
-    (disease === "Усі нозології" || item.disease === disease) &&
-    (hromada === "Усі громади" || item.hromada === hromada) &&
+    (selectedDiseases.length === 0 || selectedDiseases.includes(item.disease)) &&
+    (selectedHromadas.length === 0 || selectedHromadas.includes(item.hromada)) &&
     (!fromDate || item.date >= fromDate) && (!toDate || item.date <= toDate) &&
     (!onlyConfirmed || item.status === "Підтверджено") &&
     (!search || [item.id, item.settlement, item.hromada, item.disease].join(" ").toLowerCase().includes(search.toLowerCase()))
-  ), [cases, disease, hromada, fromDate, toDate, onlyConfirmed, search]);
+  ), [cases, selectedDiseases, selectedHromadas, fromDate, toDate, onlyConfirmed, search]);
 
   const confirmed = filtered.filter((item) => item.status === "Підтверджено").length;
   const locations = new Set(filtered.map((item) => item.hromada)).size;
@@ -609,8 +609,8 @@ export default function App() {
         setMessage("У книзі не знайдено аркушів, сумісних з імпортом EpiGIS.");
         return;
       }
-      setDisease("Усі нозології");
-      setHromada("Усі громади");
+      setSelectedDiseases([]);
+      setSelectedHromadas([]);
       setSelected(null);
       const caseSummary = casesUpdated ? " Випадки: " + caseCount + " (без координат: " + noCoordinateCases + ", відхилено: " + invalidCases + ")." : " Випадки не змінювалися.";
       const registrySummary = replacedRegistryIds.length ? " Предметні реєстри: " + importedRegistryRecords.length + " записів у " + replacedRegistryIds.length + " аркушах." : " Предметні реєстри не змінювалися.";
@@ -928,11 +928,13 @@ export default function App() {
 
         <section className="workspace">
           <aside className="sidebar">
-            <div className="section-title"><Filter size={17} /><h2>Фільтри</h2><button className="text-button" onClick={() => {setDisease("Усі нозології");setHromada("Усі громади");setFromDate("2026-01-01");setToDate("2026-12-31");setSearch("");setOnlyConfirmed(false);setRegistryFilterId("all");setRegistryCommunityFilter("Усі громади");setRegistryTypeFilter("Усі типи");setRegistrySearch("");setRegistryFromDate("");setRegistryToDate("");}}>Скинути</button></div>
+            <div className="section-title"><Filter size={17} /><h2>Фільтри</h2><button className="text-button" onClick={() => {setSelectedDiseases([]);setSelectedHromadas([]);setFromDate("2026-01-01");setToDate("2026-12-31");setSearch("");setOnlyConfirmed(false);setRegistryFilterId("all");setRegistryCommunityFilter("Усі громади");setRegistryTypeFilter("Усі типи");setRegistrySearch("");setRegistryFromDate("");setRegistryToDate("");}}>Скинути</button></div>
             <label className="field-label">Пошук за записом або НП</label>
             <div className="search-field"><Search size={16} /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Діагноз, громада, населений пункт…" /></div>
-            <label className="field-label">Нозологія</label><div className="select-wrap"><select value={disease} onChange={(e) => setDisease(e.target.value)}>{diseases.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={15} /></div>
-            <label className="field-label">Територіальна громада</label><div className="select-wrap"><select value={hromada} onChange={(e) => setHromada(e.target.value)}>{hromadas.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={15} /></div>
+            <label className="field-label">Нозології (можна обрати декілька)</label>
+            <details className="multi-filter"><summary>{selectedDiseases.length ? `Обрано: ${selectedDiseases.length}` : "Усі нозології"} <span>▾</span></summary><div className="multi-filter-options"><button type="button" className="multi-filter-clear" onClick={() => setSelectedDiseases([])}>Очистити вибір</button>{diseases.map((item) => <label key={item}><input type="checkbox" checked={selectedDiseases.includes(item)} onChange={(e) => setSelectedDiseases((current) => e.target.checked ? [...current, item] : current.filter((value) => value !== item))} />{item}</label>)}</div></details>
+            <label className="field-label">Територіальні громади (можна обрати декілька)</label>
+            <details className="multi-filter"><summary>{selectedHromadas.length ? `Обрано: ${selectedHromadas.length}` : "Усі громади"} <span>▾</span></summary><div className="multi-filter-options"><button type="button" className="multi-filter-clear" onClick={() => setSelectedHromadas([])}>Очистити вибір</button>{hromadas.map((item) => <label key={item}><input type="checkbox" checked={selectedHromadas.includes(item)} onChange={(e) => setSelectedHromadas((current) => e.target.checked ? [...current, item] : current.filter((value) => value !== item))} />{item}</label>)}</div></details>
             <div className="date-fields"><div><label className="field-label"><CalendarDays size={13} /> Від дати</label><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></div><div><label className="field-label"><CalendarDays size={13} /> До дати</label><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} /></div></div>
             <label className="toggle-row"><input type="checkbox" checked={onlyConfirmed} onChange={(e) => setOnlyConfirmed(e.target.checked)} /><span className="toggle-ui" /><span>Лише підтверджені</span></label>
             <div className="sidebar-divider" />
@@ -1028,7 +1030,7 @@ export default function App() {
                   data={hromadaBoundaries}
                   style={(feature) => {
                     const boundaryName = String(feature?.properties?.ADM3_UA ?? "");
-                    const isSelected = hromada !== "Усі громади" && (boundaryName === hromada || boundaryName.replace(/ громада$/i, "") === hromada.replace(/ громада$/i, ""));
+                    const isSelected = selectedHromadas.some((item) => boundaryName === item || boundaryName.replace(/ громада$/i, "") === item.replace(/ громада$/i, ""));
                     return {
                       color: isSelected ? "#0f766e" : "#315b73",
                       weight: isSelected ? 3 : 1.2,
@@ -1045,7 +1047,7 @@ export default function App() {
                       const match = hromadas.find((item) => item !== "Усі громади" &&
                         (item.toLocaleLowerCase("uk-UA").includes(name.replace(/ громада$/i, "").toLocaleLowerCase("uk-UA")) ||
                          name.toLocaleLowerCase("uk-UA").includes(item.replace(/ громада$/i, "").toLocaleLowerCase("uk-UA"))));
-                      if (match) setHromada(match);
+                      if (match) setSelectedHromadas((current) => current.includes(match) ? current : [...current, match]);
                       else setSearch(name.replace(/ територіальна громада$/i, "").replace(/ громада$/i, ""));
                     });
                   }}
