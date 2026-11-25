@@ -200,7 +200,7 @@ function FacilityMarkerLayer({ records, language }: { records: RegistryRecord[];
         heading.textContent = name;
         popup.appendChild(heading);
         const details: Array<[string, unknown]> = [
-          [translate("Тип"), record.values.facility_type || translate(symbol.label)],
+          [translate("Тип"), record.values.facility_type ? translate(String(record.values.facility_type)) : translate(symbol.label)],
           [translate("Адреса"), record.values.address],
           [translate("Населений пункт"), record.values.settlement],
           [translate("Громада"), record.values.hromada],
@@ -437,6 +437,7 @@ const UI_TRANSLATIONS: Record<string, string> = {
   "Вік": "Age",
   "Стать": "Sex",
   "Не вказано": "Not specified",
+  "Не визначено": "Not specified",
   "років": "years",
   "Примітки": "Notes",
   "Випадок не вибрано": "No case selected",
@@ -1571,7 +1572,7 @@ export default function App() {
                 const registry = REGISTRIES.find((item) => item.id === record.registryId);
                 const typeField = registry?.fields.find((field) => field.key.endsWith("_type") || ["disease", "organism", "life_stage", "risk_group"].includes(field.key));
                 const dateValue = record.values.detected_at ?? record.values.sample_date ?? record.values.observed_at ?? record.values.updated_at ?? "";
-                return <tr key={record.id}><td>{translateUI(registry?.label ?? record.registryId, language)}</td><td>{String(record.values.name ?? record.values.object_id ?? "—")}</td><td>{String(record.values.hromada ?? "—")}{record.values.settlement ? <small>{String(record.values.settlement)}</small> : null}</td><td>{String((typeField && record.values[typeField.key]) ?? "—")}</td><td>{String(dateValue || "—")}</td></tr>;
+                return <tr key={record.id}><td>{translateUI(registry?.label ?? record.registryId, language)}</td><td>{String(record.values.name ?? record.values.object_id ?? "—")}</td><td>{String(record.values.hromada ?? "—")}{record.values.settlement ? <small>{String(record.values.settlement)}</small> : null}</td><td>{translateUI(String((typeField && record.values[typeField.key]) ?? "—"), language)}</td><td>{String(dateValue || "—")}</td></tr>;
               })}
             </tbody></table>{filteredRegistryRecords.length > 100 && <div className="table-foot">{language === "en" ? `Showing 100 of ${filteredRegistryRecords.length} objects. Full data is available in the Excel data store.` : `Показано 100 із ${filteredRegistryRecords.length} об’єктів. Повні дані містяться в Excel-сховищі.`}</div>}{!filteredRegistryRecords.length && <div className="table-empty">Об’єктів для відображення немає.</div>}</div>
           </section>
