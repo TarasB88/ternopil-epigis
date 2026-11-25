@@ -969,7 +969,7 @@ export default function App() {
             <div className="sidebar-divider" />
             <div className="legend-title"><Layers3 size={15} /> Предметні реєстри</div>
             <label className="field-label">Тип реєстру для наступного GeoJSON-імпорту</label>
-            <div className="select-wrap"><select value={activeRegistryId} onChange={(event) => { setActiveRegistryId(event.target.value); setRegistryFormOpen(false); setEditingRegistryRecordId(""); }}>{<option value="cases">Реєстр випадків</option>}{REGISTRIES.map((registry) => <option key={registry.id} value={registry.id}>{registry.label}</option>)}</select><ChevronDown size={15} /></div>
+            <div className="select-wrap"><select value={activeRegistryId} onChange={(event) => { setActiveRegistryId(event.target.value); setRegistryFormOpen(false); setEditingRegistryRecordId(""); }}><option value="cases">Реєстр випадків</option>{REGISTRIES.map((registry) => <option key={registry.id} value={registry.id}>{registry.label}</option>)}</select><ChevronDown size={15} /></div>
             <p className="layer-empty">{activeRegistry.description}</p>
             <div className="registry-catalog"><div className="registry-catalog-item"><strong>Реєстр випадків</strong><span>{cases.length} записів · окремий набір даних</span></div>{REGISTRIES.map((registry) => <div className="registry-catalog-item" key={registry.id}><strong>{registry.label}</strong><span>{registry.fields.length} атрибутів · {registry.geometry === "mixed" ? "різні геометрії" : registry.geometry}</span></div>)}</div>
             <div className="sidebar-divider" />
