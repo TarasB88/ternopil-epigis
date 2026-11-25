@@ -225,7 +225,7 @@ function FacilityMarkerLayer({ records, language }: { records: RegistryRecord[];
     render();
     map.on("zoomend moveend", render);
     return () => { map.off("zoomend moveend", render); map.removeLayer(layer); };
-  }, [map, records]);
+  }, [map, records, language]);
   return null;
 }
 
@@ -660,6 +660,8 @@ const UI_TRANSLATIONS: Record<string, string> = {
   "Географічний шар": "Geographic layer",
   "Імпортовані дані": "Imported data",
   "Імпорт із Excel": "Imported from Excel",
+  "Джерело": "Source",
+  "Громада": "Community",
 };
 
 function translateUI(value: string, language: "uk" | "en"): string {
