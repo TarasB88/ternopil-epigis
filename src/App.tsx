@@ -637,10 +637,65 @@ const UI_TRANSLATIONS: Record<string, string> = {
   "Створено шар «": "Created layer “",
   "Не вдалося завантажити випадки: сховище браузера переповнене або недоступне.": "Could not save cases: browser storage is full or unavailable.",
 
+  "Для CSV система відбере активні місця надання послуг Тернопільської області, зіставить поля та імпортує записи з валідними координатами.": "For CSV files, the system selects active service locations in Ternopil Oblast, maps the fields and imports records with valid coordinates.",
+  "Аркуш Cases містить лише демонстраційний рядок CASE-0001 (\"Приклад — замінити даними\"). Його пропущено; додай реальні записи починаючи з наступного рядка. Попередні випадки збережено.": "The Cases sheet contains only the demonstration row CASE-0001 (\"Example — replace with data\"). It was skipped; add real records starting from the next row. Previous cases were preserved.",
+  "Створено на карті": "Created on map",
+  "Ручне креслення на карті": "Manual map drawing",
+  "Нова точка": "New point",
+  "Нова лінія": "New line",
+  "Новий полігон": "New polygon",
+  "Буферні зони": "Buffer zones",
+  "Важливо: об'єкти": "Important: features",
+  "Випадки інфекційної захворюваності": "Infectious disease cases",
+  "Ідентифікатор підрозділу": "Division ID",
+  "Назва підрозділу": "Division name",
+  "Назва громади місцезнаходження": "Community of location",
+  "Населений пункт місцезнаходження": "Settlement of location",
+  "Адреси місцезнаходження": "Location addresses",
+  "НСЗУ — pmg_legal_entity_divisions_info.csv": "NHSU — pmg_legal_entity_divisions_info.csv",
+  "Тип підрозділу": "Division type",
+  "Ідентифікатор юридичної особи": "Legal entity ID",
+  "Телефон підрозділу": "Division phone",
+  "Електронна пошта підрозділу": "Division email",
+  "Географічний шар": "Geographic layer",
+  "Імпортовані дані": "Imported data",
+  "Імпорт із Excel": "Imported from Excel",
 };
 
 function translateUI(value: string, language: "uk" | "en"): string {
   return language === "en" ? (UI_TRANSLATIONS[value] ?? value) : value;
+}
+
+function translateSystemMessage(value: string, language: "uk" | "en"): string {
+  if (language === "uk") return value;
+  const exact = UI_TRANSLATIONS[value];
+  if (exact) return exact;
+  const patterns: Array<[RegExp, string]> = [
+    [/^Додано шар «(.*)»: (\\d+) об'єктів\\. Відхилено некоректних або непідтримуваних: (\\d+)\\.$/, "Layer added: $1 ($2 features). Invalid or unsupported features rejected: $3."],
+    [/^Шар перейменовано на «(.*)»\\.$/, "Layer renamed to “$1”."],
+    [/^Створено шар «(.*)»\\.$/, "Layer created: “$1”."],
+    [/^Побудовано буфер (\\d+) м для (\\d+) об'єктів шару «(.*)»\\.$/, "Created a $1 m buffer for $2 features in layer “$3”."],
+    [/^Знайдено об'єктів реєстрів: (\\d+)$/, "Registry objects found: $1"],
+    [/^Познач вершини на карті\\. Додано: (\\d+)\\.$/, "Mark vertices on the map. Added: $1."]
+  ];
+  for (const [pattern, replacement] of patterns) {
+    if (pattern.test(value)) return value.replace(pattern, replacement);
+  }
+  if (value.startsWith("Імпорт завершено.")) {
+    return value
+      .replace("Імпорт завершено.", "Import completed.")
+      .replace(" Випадки не змінювалися.", " Cases were not changed.")
+      .replace(" Предметні реєстри не змінювалися.", " Thematic registries were not changed.")
+      .replace(" Геошари не змінювалися.", " Geographic layers were not changed.")
+      .replace(" Геошари не оновлено через помилки GeoJSON; попередні шари збережено.", " Geographic layers were not updated because of GeoJSON errors; previous layers were preserved.")
+      .replace(" Дані збережено в локальному сховищі цього браузера.", " Data was saved in this browser's local storage.")
+      .replace(" Випадки: ", " Cases: ").replace(" (без координат: ", " (without coordinates: ")
+      .replace(", відхилено: ", ", rejected: ").replace(").", ").")
+      .replace(" Предметні реєстри: ", " Thematic registries: ").replace(" записів у ", " records across ").replace(" аркушах.", " worksheets.")
+      .replace(" Геошари: ", " Geographic layers: ").replace(" шарів.", " layers.")
+      .replace(" Некоректні рядки реєстрів/геошарів: ", " Invalid registry/geographic-layer rows: ");
+  }
+  return value;
 }
 
 function localizeNode(node: React.ReactNode, language: "uk" | "en"): React.ReactNode {
@@ -1334,7 +1389,7 @@ export default function App() {
           <button className="button button-primary" onClick={exportCsv}><Download size={16} /> Експортувати вибірку</button>
         </section>
 
-        {message && <div className="notice"><AlertTriangle size={16} /><span>{message}</span><button aria-label="Закрити повідомлення" onClick={() => setMessage("")}><X size={15} /></button></div>}
+        {message && <div className="notice"><AlertTriangle size={16} /><span>{translateSystemMessage(message, language)}</span><button aria-label="Закрити повідомлення" onClick={() => setMessage("")}><X size={15} /></button></div>}
 
         {showUpload && <section className="upload-panel">
           <div className="upload-copy"><FileSpreadsheet size={22} /><div><strong>Імпорт книги EpiGIS або CSV НСЗУ</strong><p>Можна завантажити повну Excel-книгу EpiGIS або безпосередньо pmg_legal_entity_divisions_info.csv. Для CSV система відбере активні місця надання послуг Тернопільської області, зіставить поля та імпортує записи з валідними координатами.</p></div></div>
@@ -1506,7 +1561,7 @@ export default function App() {
             <div className="legend-title"><Layers3 size={15} /> Географічні шари <span className="layer-count">{gisLayers.length}</span></div>
             <button className="button button-light layer-import-button" onClick={() => layerFileRef.current?.click()}><Upload size={14} /> Додати GeoJSON</button>
             <input ref={layerFileRef} type="file" accept=".geojson,.json,application/geo+json,application/json" hidden onChange={(event) => importGeoJSON(event.target.files?.[0])} />
-            {layerMessage && <div className="layer-message">{layerMessage}</div>}
+            {layerMessage && <div className="layer-message">{translateSystemMessage(layerMessage, language)}</div>}
             {gisLayers.length === 0 ? <p className="layer-empty">Поки немає власних шарів. Додай GeoJSON із точками, лініями або полігонами.</p> :
               <div className="layer-list">{gisLayers.map((layer) => <div className="layer-item" key={layer.id}>
                 <label><input type="checkbox" checked={layer.visible} onChange={() => toggleLayer(layer.id)} /><span className="layer-name">{layer.name}</span></label>
