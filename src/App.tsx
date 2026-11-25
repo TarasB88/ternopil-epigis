@@ -86,6 +86,140 @@ function DrawController({ mode, onMapClick }: { mode: DrawMode; onMapClick: (lat
   return null;
 }
 
+
+type FacilitySymbol = { kind: string; glyph: string; label: string };
+function facilitySymbol(type: unknown): FacilitySymbol {
+  const value = String(type ?? "").toLocaleLowerCase("uk-UA");
+  if (/екстрен|швидк|медиц.*катастроф|103/.test(value)) return { kind: "emergency", glyph: "✚", label: "Екстрена допомога" };
+  if (/стомат|зубн/.test(value)) return { kind: "dental", glyph: "✦", label: "Стоматологія" };
+  if (/лаборатор|діагност/.test(value)) return { kind: "laboratory", glyph: "⚗", label: "Лабораторія" };
+  if (/амбулатор|цпмсд|первин|сімейн|фельдшер/.test(value)) return { kind: "primary", glyph: "⌂", label: "Первинна допомога" };
+  if (/лікарн|госпітал|стаціонар/.test(value)) return { kind: "hospital", glyph: "✚", label: "Лікарня" };
+  if (/приват|медичн.*центр|клінік/.test(value)) return { kind: "clinic", glyph: "●", label: "Медичний центр / клініка" };
+  return { kind: "other", glyph: "•", label: "Інший медичний заклад" };
+}
+
+function FacilityMarkerLayer({ records }: { records: RegistryRecord[] }) {
+  const map = useMap();
+  useEffect(() => {
+    const layer = L.layerGroup().addTo(map);
+    const render = () => {
+      layer.clearLayers();
+      const size = map.getSize();
+      const zoom = map.getZoom();
+      const iconSize = zoom < 8 ? 17 : zoom < 11 ? 20 : zoom < 14 ? 24 : zoom < 16 ? 28 : 32;
+      const visible = records.filter((record) =>
+        Number.isFinite(record.latitude) && Number.isFinite(record.longitude) &&
+        record.latitude >= 44 && record.latitude <= 53 && record.longitude >= 20 && record.longitude <= 42
+      ).map((record) => ({ record, point: map.latLngToContainerPoint([record.latitude, record.longitude]) }))
+        .filter(({ point }) => point.x >= -70 && point.y >= -70 && point.x <= size.x + 70 && point.y <= size.y + 70);
+
+      const groups: number[][] = [];
+      if (zoom < 15) {
+        const radius = zoom < 9 ? 58 : zoom < 12 ? 48 : 40;
+        const parents = visible.map((_item, index) => index);
+        const find = (value: number): number => parents[value] === value ? value : (parents[value] = find(parents[value]));
+        const join = (a: number, b: number) => { const ra = find(a); const rb = find(b); if (ra !== rb) parents[rb] = ra; };
+        const buckets = new Map<string, number[]>();
+        visible.forEach(({ point }, index) => {
+          const cx = Math.floor(point.x / radius); const cy = Math.floor(point.y / radius);
+          for (let dx = -1; dx <= 1; dx += 1) for (let dy = -1; dy <= 1; dy += 1) {
+            for (const other of buckets.get(`${cx + dx}:${cy + dy}`) ?? []) {
+              const candidate = visible[other].point;
+              if (point.distanceTo(candidate) <= radius) join(index, other);
+            }
+          }
+          const key = `${cx}:${cy}`;
+          buckets.set(key, [...(buckets.get(key) ?? []), index]);
+        });
+        const grouped = new Map<number, number[]>();
+        visible.forEach((_item, index) => {
+          const root = find(index);
+          grouped.set(root, [...(grouped.get(root) ?? []), index]);
+        });
+        groups.push(...grouped.values());
+      } else {
+        visible.forEach((_item, index) => groups.push([index]));
+      }
+
+      const duplicatePositions = new Map<string, number[]>();
+      if (zoom >= 15) visible.forEach(({ record }, index) => {
+        const key = `${record.latitude.toFixed(6)}:${record.longitude.toFixed(6)}`;
+        duplicatePositions.set(key, [...(duplicatePositions.get(key) ?? []), index]);
+      });
+      const displayPositions = new Map<number, L.LatLng>();
+      duplicatePositions.forEach((indices) => {
+        if (indices.length < 2) return;
+        const base = visible[indices[0]];
+        const center = map.project([base.record.latitude, base.record.longitude], zoom);
+        const radius = 14 + Math.min(14, indices.length * 1.2);
+        indices.forEach((index, order) => {
+          const angle = (Math.PI * 2 * order) / indices.length;
+          const offset = L.point(center.x + Math.cos(angle) * radius, center.y + Math.sin(angle) * radius);
+          displayPositions.set(index, map.unproject(offset, zoom));
+        });
+      });
+
+      groups.forEach((indices) => {
+        if (indices.length > 1 && zoom < 15) {
+          const center = indices.reduce((acc, index) => acc.add(visible[index].point), L.point(0, 0)).divideBy(indices.length);
+          const latlng = map.containerPointToLatLng(center);
+          const clusterSize = indices.length >= 100 ? 40 : indices.length >= 10 ? 36 : 32;
+          const icon = L.divIcon({
+            className: "facility-cluster-host",
+            html: `<span class="facility-cluster" style="--cluster-size:${clusterSize}px"><span>${indices.length}</span></span>`,
+            iconSize: [clusterSize, clusterSize],
+            iconAnchor: [clusterSize / 2, clusterSize / 2]
+          });
+          const marker = L.marker(latlng, { icon, title: `${indices.length} медичних закладів у групі`, keyboard: true });
+          const bounds = L.latLngBounds(indices.map((index) => [visible[index].record.latitude, visible[index].record.longitude] as [number, number]));
+          marker.on("click", () => map.fitBounds(bounds, { padding: [34, 34], maxZoom: 16 }));
+          marker.addTo(layer);
+          return;
+        }
+
+        const index = indices[0];
+        const record = visible[index].record;
+        const symbol = facilitySymbol(record.values.facility_type);
+        const name = String(record.values.name ?? "Медичний заклад");
+        const html = `<span class="facility-marker facility-marker--${symbol.kind}" style="--marker-size:${iconSize}px"><span>${symbol.glyph}</span></span>`;
+        const icon = L.divIcon({
+          className: "facility-marker-host",
+          html,
+          iconSize: [iconSize, iconSize],
+          iconAnchor: [iconSize / 2, iconSize / 2]
+        });
+        const marker = L.marker(displayPositions.get(index) ?? [record.latitude, record.longitude], { icon, title: name, keyboard: true });
+        marker.bindTooltip(name, { direction: "top", offset: [0, -iconSize / 2] });
+        const popup = document.createElement("div");
+        const heading = document.createElement("strong");
+        heading.textContent = name;
+        popup.appendChild(heading);
+        const details: Array<[string, unknown]> = [
+          ["Тип", record.values.facility_type || symbol.label],
+          ["Адреса", record.values.address],
+          ["Населений пункт", record.values.settlement],
+          ["Громада", record.values.hromada],
+          ["Форма власності", record.values.ownership],
+          ["Джерело", record.values.source]
+        ];
+        details.forEach(([label, value]) => {
+          if (value === undefined || value === null || String(value).trim() === "") return;
+          const line = document.createElement("div");
+          line.textContent = `${label}: ${String(value)}`;
+          popup.appendChild(line);
+        });
+        marker.bindPopup(popup, { maxWidth: 280 });
+        marker.addTo(layer);
+      });
+    };
+    render();
+    map.on("zoomend moveend", render);
+    return () => { map.off("zoomend moveend", render); map.removeLayer(layer); };
+  }, [map, records]);
+  return null;
+}
+
 function normalizeHeaderKey(value: unknown): string {
   return String(value ?? "")
     .trim()
@@ -895,7 +1029,8 @@ export default function App() {
                 />)}
                 <FitToCases cases={filtered} />
                 <FitToLayer layer={gisLayers.find((layer) => layer.id === fitLayerId) ?? null} />
-                {filteredRegistryRecords.map((record) => <CircleMarker key={record.id} center={[record.latitude, record.longitude]} radius={6} pathOptions={{ color: "#315f9a", fillColor: "#4d83bd", fillOpacity: 0.85, weight: 1.5 }}><Popup><strong>{String(record.values.name ?? "Об’єкт реєстру")}</strong><br />{REGISTRIES.find((registry) => registry.id === record.registryId)?.label}<br />{String(record.values.hromada ?? "")}</Popup></CircleMarker>)}
+                <FacilityMarkerLayer records={filteredRegistryRecords.filter((record) => record.registryId === "healthcare")} />
+                {filteredRegistryRecords.filter((record) => record.registryId !== "healthcare").map((record) => <CircleMarker key={record.id} center={[record.latitude, record.longitude]} radius={6} pathOptions={{ color: "#315f9a", fillColor: "#4d83bd", fillOpacity: 0.85, weight: 1.5 }}><Popup><strong>{String(record.values.name ?? "Об’єкт реєстру")}</strong><br />{REGISTRIES.find((registry) => registry.id === record.registryId)?.label}<br />{String(record.values.hromada ?? "")}</Popup></CircleMarker>)}
                 {filtered.filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude)).map((item) => <CircleMarker key={item.id} center={[item.latitude as number, item.longitude as number]} radius={selected?.id === item.id ? 10 : 7} pathOptions={{ color: item.status === "Підтверджено" ? "#126b58" : "#d28a24", fillColor: item.status === "Підтверджено" ? "#21866d" : "#e6a744", fillOpacity: 0.88, weight: selected?.id === item.id ? 3 : 1.5 }} eventHandlers={{ click: () => setSelected(item) }}><Popup><strong>{item.disease}</strong><br />{item.settlement || item.hromada}<br />{item.date}<br />{item.status}</Popup></CircleMarker>)}
               </MapContainer>
               {filtered.length === 0 && filteredRegistryRecords.length === 0 && <div className="empty-map">За вибраними параметрами записів не знайдено.</div>}
