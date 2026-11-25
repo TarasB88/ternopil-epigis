@@ -1407,7 +1407,15 @@ export default function App() {
     });
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([geoHeaders, ...geoRows]), GEO_LAYERS_SHEET);
 
-    const infoRows = [
+    const infoRows = language === "en" ? [
+      ["Sheet", "Purpose", "Completion rules"],
+      ["Cases", "Infectious disease cases", "The existing column structure is unchanged. Required fields: disease, date, hromada, latitude, longitude."],
+      ...REGISTRIES.map((registry) => [REGISTRY_SHEET_NAMES[registry.id], UI_TRANSLATIONS[registry.label] ?? registry.label, "One row per feature. Required fields are defined in the relevant registry; latitude and longitude are required."]),
+      ["GeoLayers", "GeoJSON layers, water pipelines, boundaries, buffers, manually drawn features and spatial analysis results", "System-managed sheet. GeoJSON is stored in chunks in the geojson_chunk column; do not edit this sheet manually."],
+      ["Updates", "Workbook as a working data store", "Download the workbook, add or edit records, then import it into EpiGIS. Only datasets with populated worksheets are imported; empty worksheets do not clear existing data."],
+      ["Storage", "Browser local storage", "After import, records are stored in this browser. Download the latest workbook as a backup; the file can be used to transfer data to another device."],
+      ["Privacy", "Usage restrictions", "Do not upload personal or medically identifiable data. Enter population data only in aggregate form. This version does not provide server-side synchronisation between users."]
+    ] : [
       ["Аркуш", "Призначення", "Правила заповнення"],
       ["Cases", "Випадки інфекційної захворюваності", "Чинна структура колонок не змінена. Обов’язкові поля: disease, date, hromada, latitude, longitude."],
       ...REGISTRIES.map((registry) => [REGISTRY_SHEET_NAMES[registry.id], registry.label, "Один рядок — один об’єкт. Обов’язкові поля визначені у відповідному реєстрі; координати latitude/longitude обов’язкові."]),
@@ -1418,11 +1426,27 @@ export default function App() {
     ];
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(infoRows), "Instructions");
 
-    const dictionaryRows: unknown[][] = [
+    const workbookFieldType = (type: string) => language === "en"
+      ? ({ text: "Text", date: "Date", number: "Number", select: "Select" } as Record<string, string>)[type] ?? type
+      : type;
+    const dictionaryRows: unknown[][] = language === "en" ? [
+      ["Sheet", "Excel field", "Field label", "Data type", "Required", "Allowed values / notes"],
+      ...TEMPLATE_HEADERS.map((key) => ["Cases", key, key, key === "latitude" || key === "longitude" || key === "age" ? "Number" : key === "date" ? "Date YYYY-MM-DD" : "Text", ["disease", "date", "hromada", "latitude", "longitude"].includes(key) ? "Yes" : "No", "The existing Cases sheet structure is preserved."]),
+      ...REGISTRIES.flatMap((registry) => [
+        ...registry.fields.map((field) => [REGISTRY_SHEET_NAMES[registry.id], field.key, UI_TRANSLATIONS[field.label] ?? field.label, workbookFieldType(field.type), field.required ? "Yes" : "No", (field.options ?? []).join(" / ")]),
+        [REGISTRY_SHEET_NAMES[registry.id], "latitude", "Latitude", "Number", "Yes", "WGS84 decimal degrees, from -90 to 90"],
+        [REGISTRY_SHEET_NAMES[registry.id], "longitude", "Longitude", "Number", "Yes", "WGS84 decimal degrees, from -180 to 180"],
+        [REGISTRY_SHEET_NAMES[registry.id], "record_id", "Internal record ID", "Text", "No", "Leave blank; EpiGIS will generate an ID automatically."]
+      ]),
+      ["GeoLayers", "geojson_chunk", "GeoJSON fragment", "Text", "Yes", "System-managed structure for points, lines, polygons, buffers and other geographic layers."],
+      ["GeoLayers", "layer_id", "Layer ID", "Text", "Yes", "Do not edit manually."],
+      ["GeoLayers", "chunk_index / chunk_count", "Chunk index and count", "Number", "Yes", "Do not edit manually."],
+      ["Reference", "Enumerated values", "Option values are retained in Ukrainian in the source workbook to preserve import compatibility.", "", "", "Do not translate or modify controlled option values."]
+    ] : [
       ["Аркуш", "Поле Excel", "Назва поля", "Тип даних", "Обов’язкове", "Допустимі значення / пояснення"],
       ...TEMPLATE_HEADERS.map((key) => ["Cases", key, key, key === "latitude" || key === "longitude" || key === "age" ? "Число" : key === "date" ? "Дата YYYY-MM-DD" : "Текст", ["disease", "date", "hromada", "latitude", "longitude"].includes(key) ? "Так" : "Ні", "Зберігається чинна структура аркуша Cases"]),
       ...REGISTRIES.flatMap((registry) => [
-        ...registry.fields.map((field) => [REGISTRY_SHEET_NAMES[registry.id], field.key, field.label, field.type, field.required ? "Так" : "Ні", (field.options ?? []).join(" / ") ]),
+        ...registry.fields.map((field) => [REGISTRY_SHEET_NAMES[registry.id], field.key, field.label, field.type, field.required ? "Так" : "Ні", (field.options ?? []).join(" / ")]),
         [REGISTRY_SHEET_NAMES[registry.id], "latitude", "Широта", "Число", "Так", "Десяткові градуси WGS84, від -90 до 90"],
         [REGISTRY_SHEET_NAMES[registry.id], "longitude", "Довгота", "Число", "Так", "Десяткові градуси WGS84, від -180 до 180"],
         [REGISTRY_SHEET_NAMES[registry.id], "record_id", "Службовий ID запису", "Текст", "Ні", "Можна залишити порожнім; система сформує ID автоматично"]
