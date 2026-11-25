@@ -675,7 +675,7 @@ function translateGeometryType(value: unknown, language: "uk" | "en"): string {
     GeometryCollection: { uk: "Колекція геометрій", en: "Geometry collection" }
   };
   const key = String(value ?? "");
-  return types[key]?.[language] ?? key || "—";
+  return types[key]?.[language] ?? (key || "—");
 }
 
 function translateUI(value: string, language: "uk" | "en"): string {
