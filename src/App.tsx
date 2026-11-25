@@ -636,7 +636,12 @@ const UI_TRANSLATIONS: Record<string, string> = {
   "Шар перейменовано на «": "Layer renamed to “",
   "Створено шар «": "Created layer “",
   "Не вдалося завантажити випадки: сховище браузера переповнене або недоступне.": "Could not save cases: browser storage is full or unavailable.",
+
 };
+
+function translateUI(value: string, language: "uk" | "en"): string {
+  return language === "en" ? (UI_TRANSLATIONS[value] ?? value) : value;
+}
 
 function localizeNode(node: React.ReactNode, language: "uk" | "en"): React.ReactNode {
   if (language === "uk") return node;
@@ -1363,16 +1368,16 @@ export default function App() {
                 <button type="button" className="multi-filter-clear" onClick={() => { setSelectedRegistryIds(["cases"]); setRegistryTypeFilter("Усі типи"); }}>За замовчуванням: реєстр випадків</button>
                 <button type="button" className="multi-filter-clear" onClick={() => { setSelectedRegistryIds([]); setRegistryTypeFilter("Усі типи"); }}>Очистити вибір</button>
                 <label><input type="checkbox" checked={selectedRegistryIds.includes("cases")} onChange={(event) => { setSelectedRegistryIds((current) => event.target.checked ? [...current, "cases"] : current.filter((id) => id !== "cases")); setRegistryTypeFilter("Усі типи"); }} />Реєстр випадків</label>
-                {REGISTRIES.map((registry) => <label key={registry.id}><input type="checkbox" checked={selectedRegistryIds.includes(registry.id)} onChange={(event) => { setSelectedRegistryIds((current) => event.target.checked ? [...current, registry.id] : current.filter((id) => id !== registry.id)); setRegistryTypeFilter("Усі типи"); }} />{registry.label}</label>)}
+                {REGISTRIES.map((registry) => <label key={registry.id}><input type="checkbox" checked={selectedRegistryIds.includes(registry.id)} onChange={(event) => { setSelectedRegistryIds((current) => event.target.checked ? [...current, registry.id] : current.filter((id) => id !== registry.id)); setRegistryTypeFilter("Усі типи"); }} />{translateUI(registry.label, language)}</label>)}
               </div>
             </details>
             <label className="field-label">Пошук об’єкта / атрибута</label>
             <div className="search-field"><Search size={16} /><input value={registrySearch} onChange={(event) => setRegistrySearch(event.target.value)} placeholder="Назва, адреса, оператор, вид…" /></div>
             <label className="field-label">Територіальна громада</label>
             <div className="select-wrap"><select value={registryCommunityFilter} onChange={(event) => setRegistryCommunityFilter(event.target.value)}>{registryCommunityOptions.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={15} /></div>
-            {registryTypeField && selectedRegistryIds.length === 1 && <><label className="field-label">{registryTypeField.label}</label><div className="select-wrap"><select value={registryTypeFilter} onChange={(event) => setRegistryTypeFilter(event.target.value)}><option>Усі типи</option>{registryTypeOptions.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={15} /></div></>}
+            {registryTypeField && selectedRegistryIds.length === 1 && <><label className="field-label">{translateUI(registryTypeField.label, language)}</label><div className="select-wrap"><select value={registryTypeFilter} onChange={(event) => setRegistryTypeFilter(event.target.value)}><option>Усі типи</option>{registryTypeOptions.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown size={15} /></div></>}
             <div className="date-fields"><div><label className="field-label"><CalendarDays size={13} /> Від дати</label><input type="date" value={registryFromDate} onChange={(event) => setRegistryFromDate(event.target.value)} /></div><div><label className="field-label"><CalendarDays size={13} /> До дати</label><input type="date" value={registryToDate} onChange={(event) => setRegistryToDate(event.target.value)} /></div></div>
-            <div className="layer-empty">Знайдено об’єктів реєстрів: {filteredRegistryRecords.length}</div>
+            <div className="layer-empty">{language === "en" ? `Registry objects found: ${filteredRegistryRecords.length}` : `Знайдено об’єктів реєстрів: ${filteredRegistryRecords.length}`}</div>
             <div className="sidebar-divider" />
             <div className="legend-title"><Layers3 size={15} /> Умовні позначення</div>
             <div className="legend-row"><span className="legend-dot confirmed" /> Підтверджений випадок</div>
@@ -1380,16 +1385,16 @@ export default function App() {
             <div className="sidebar-divider" />
             <div className="legend-title"><Layers3 size={15} /> Предметні реєстри</div>
             <label className="field-label">Тип реєстру для наступного GeoJSON-імпорту</label>
-            <div className="select-wrap"><select value={activeRegistryId} onChange={(event) => { setActiveRegistryId(event.target.value); setRegistryFormOpen(false); setEditingRegistryRecordId(""); }}><option value="cases">Реєстр випадків</option>{REGISTRIES.map((registry) => <option key={registry.id} value={registry.id}>{registry.label}</option>)}</select><ChevronDown size={15} /></div>
-            <p className="layer-empty">{activeRegistry.description}</p>
-            <div className="registry-catalog"><div className="registry-catalog-item"><strong>Реєстр випадків</strong><span>{cases.length} записів · окремий набір даних</span></div>{REGISTRIES.map((registry) => <div className="registry-catalog-item" key={registry.id}><strong>{registry.label}</strong><span>{registry.fields.length} атрибутів · {registry.geometry === "mixed" ? "різні геометрії" : registry.geometry}</span></div>)}</div>
+            <div className="select-wrap"><select value={activeRegistryId} onChange={(event) => { setActiveRegistryId(event.target.value); setRegistryFormOpen(false); setEditingRegistryRecordId(""); }}><option value="cases">Реєстр випадків</option>{REGISTRIES.map((registry) => <option key={registry.id} value={registry.id}>{translateUI(registry.label, language)}</option>)}</select><ChevronDown size={15} /></div>
+            <p className="layer-empty">{translateUI(activeRegistry.description, language)}</p>
+            <div className="registry-catalog"><div className="registry-catalog-item"><strong>Реєстр випадків</strong><span>{cases.length} {language === "en" ? "records · separate dataset" : "записів · окремий набір даних"}</span></div>{REGISTRIES.map((registry) => <div className="registry-catalog-item" key={registry.id}><strong>{translateUI(registry.label, language)}</strong><span>{registry.fields.length} {language === "en" ? "attributes" : "атрибутів"} · {registry.geometry === "mixed" ? (language === "en" ? "mixed geometries" : "різні геометрії") : registry.geometry}</span></div>)}</div>
             <div className="sidebar-divider" />
-            <div className="legend-title"><FileSpreadsheet size={15} /> Реєстр: {activeRegistry.label}</div>
+            <div className="legend-title"><FileSpreadsheet size={15} /> {translateUI("Реєстр: ", language)}{translateUI(activeRegistry.label, language)}</div>
             {activeRegistryId === "cases" ? <div className="layer-empty">Реєстр випадків доступний у таблиці «Реєстр випадків» нижче та через аркуш Cases в Excel-сховищі. Записи випадків не дублюються в предметних реєстрах.</div> : <><div className="registry-record-toolbar"><span>{activeRegistryRecords.length} записів</span><button className="button button-light" onClick={openNewRegistryRecord}>+ Додати запис</button></div>
             {registryFormOpen && <form className="registry-form" onSubmit={saveRegistryRecord}>
               <strong>{editingRegistryRecordId ? "Редагування запису" : "Новий запис"}</strong>
-              {activeRegistry.fields.map((field) => <label className="field-label" key={field.key}>{field.label}{field.required ? " *" : ""}
-                {field.type === "select" ? <select required={field.required} value={registryFormValues[field.key] ?? ""} onChange={(event) => setRegistryFormValues((current) => ({ ...current, [field.key]: event.target.value }))}><option value="">Вибрати…</option>{(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}</select> :
+              {activeRegistry.fields.map((field) => <label className="field-label" key={field.key}>{translateUI(field.label, language)}{field.required ? " *" : ""}
+                {field.type === "select" ? <select required={field.required} value={registryFormValues[field.key] ?? ""} onChange={(event) => setRegistryFormValues((current) => ({ ...current, [field.key]: event.target.value }))}><option value="">Вибрати…</option>{(field.options ?? []).map((option) => <option key={option} value={option}>{translateUI(option, language)}</option>)}</select> :
                 <input required={field.required} type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"} value={registryFormValues[field.key] ?? ""} onChange={(event) => setRegistryFormValues((current) => ({ ...current, [field.key]: event.target.value }))} />}
               </label>)}
               <div className="registry-coordinate-grid"><label className="field-label">Широта *<input required type="number" step="any" min="-90" max="90" value={registryFormValues.latitude ?? ""} onChange={(event) => setRegistryFormValues((current) => ({ ...current, latitude: event.target.value }))} /></label><label className="field-label">Довгота *<input required type="number" step="any" min="-180" max="180" value={registryFormValues.longitude ?? ""} onChange={(event) => setRegistryFormValues((current) => ({ ...current, longitude: event.target.value }))} /></label></div>
@@ -1483,7 +1488,7 @@ export default function App() {
             <div className="table-heading"><div><h2>Реєстр випадків</h2><p>Натисни на рядок, щоб переглянути деталі</p></div><span>{filtered.length} записів</span></div>
             <div className="table-scroll"><table><thead><tr><th>ID</th><th>Нозологія</th><th>Дата</th><th>Громада / НП</th><th>Статус</th></tr></thead><tbody>
               {filtered.slice(0, 100).map((item) => <tr key={item.id} className={selected?.id === item.id ? "selected-row" : ""} onClick={() => setSelected(item)}><td className="case-id">{item.id}</td><td>{item.disease}</td><td>{item.date}</td><td>{item.hromada}{item.settlement ? <small>{item.settlement}</small> : null}</td><td><span className={item.status === "Підтверджено" ? "status status-confirmed" : "status status-review"}>{item.status}</span></td></tr>)}
-            </tbody></table>{filtered.length > 100 && <div className="table-foot">Показано 100 із {filtered.length} записів. Експорт містить усю вибірку.</div>}{!filtered.length && <div className="table-empty">Немає записів для відображення.</div>}</div>
+            </tbody></table>{filtered.length > 100 && <div className="table-foot">{language === "en" ? `Showing 100 of ${filtered.length} records. Export includes the full selection.` : `Показано 100 із ${filtered.length} записів. Експорт містить усю вибірку.`}</div>}{!filtered.length && <div className="table-empty">Немає записів для відображення.</div>}</div>
             <div className="table-heading"><div><h2>Об’єкти предметних реєстрів</h2><p>За активними фільтрами реєстрів</p></div><span>{filteredRegistryRecords.length} записів</span></div>
             <div className="table-scroll"><table><thead><tr><th>Реєстр</th><th>Об’єкт</th><th>Громада / НП</th><th>Тип / характеристика</th><th>Дата</th></tr></thead><tbody>
               {filteredRegistryRecords.slice(0, 100).map((record) => {
@@ -1492,7 +1497,7 @@ export default function App() {
                 const dateValue = record.values.detected_at ?? record.values.sample_date ?? record.values.observed_at ?? record.values.updated_at ?? "";
                 return <tr key={record.id}><td>{registry?.label ?? record.registryId}</td><td>{String(record.values.name ?? record.values.object_id ?? "—")}</td><td>{String(record.values.hromada ?? "—")}{record.values.settlement ? <small>{String(record.values.settlement)}</small> : null}</td><td>{String((typeField && record.values[typeField.key]) ?? "—")}</td><td>{String(dateValue || "—")}</td></tr>;
               })}
-            </tbody></table>{filteredRegistryRecords.length > 100 && <div className="table-foot">Показано 100 із {filteredRegistryRecords.length} об’єктів. Повні дані містяться в Excel-сховищі.</div>}{!filteredRegistryRecords.length && <div className="table-empty">Об’єктів для відображення немає.</div>}</div>
+            </tbody></table>{filteredRegistryRecords.length > 100 && <div className="table-foot">{language === "en" ? `Showing 100 of ${filteredRegistryRecords.length} objects. Full data is available in the Excel data store.` : `Показано 100 із ${filteredRegistryRecords.length} об’єктів. Повні дані містяться в Excel-сховищі.`}</div>}{!filteredRegistryRecords.length && <div className="table-empty">Об’єктів для відображення немає.</div>}</div>
           </section>
 
           <aside className="detail-panel">
