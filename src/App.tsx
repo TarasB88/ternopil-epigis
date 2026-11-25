@@ -1032,49 +1032,6 @@ export default function App() {
             </form>}
             <div className="registry-record-list">{activeRegistryRecords.map((record) => <div className="registry-record" key={record.id}><div><strong>{String(record.values.name ?? record.values.object_id ?? "Об'єкт без назви")}</strong><span>{String(record.values.hromada ?? "Громаду не вказано")} · {record.latitude.toFixed(4)}, {record.longitude.toFixed(4)}</span></div><button className="layer-export" title="Редагувати запис" onClick={() => openEditRegistryRecord(record)}><Pencil size={13} /></button><button className="layer-remove" title="Видалити запис" onClick={() => deleteRegistryRecord(record.id)}><X size={13} /></button></div>)}</div>
             <p className="layer-empty">Записи зберігаються локально в цьому браузері. Координати використовуються для відображення точок на карті. Для ліній і полігонів імпортуй GeoJSON.</p></>}
-            <div className="sidebar-divider" />
-            <div className="legend-title"><Layers3 size={15} /> Географічні шари <span className="layer-count">{gisLayers.length}</span></div>
-            <button className="button button-light layer-import-button" onClick={() => layerFileRef.current?.click()}><Upload size={14} /> Додати GeoJSON</button>
-            <input ref={layerFileRef} type="file" accept=".geojson,.json,application/geo+json,application/json" hidden onChange={(event) => importGeoJSON(event.target.files?.[0])} />
-            {layerMessage && <div className="layer-message">{layerMessage}</div>}
-            {gisLayers.length === 0 ? <p className="layer-empty">Поки немає власних шарів. Додай GeoJSON із точками, лініями або полігонами.</p> :
-              <div className="layer-list">{gisLayers.map((layer) => <div className="layer-item" key={layer.id}>
-                <label><input type="checkbox" checked={layer.visible} onChange={() => toggleLayer(layer.id)} /><span className="layer-name">{layer.name}</span></label>
-                <span className="layer-meta">{layer.data.features.length} об'єктів</span>
-                <button className="layer-export" title="Показати шар на карті" aria-label={`Масштабувати карту до шару ${layer.name}`} onClick={() => setFitLayerId(layer.id)}><LocateFixed size={13} /></button>
-                <button className="layer-export" title="Перейменувати шар" aria-label={`Перейменувати шар ${layer.name}`} onClick={() => renameLayer(layer)}><Pencil size={13} /></button>
-                <button className="layer-export" title="Експортувати GeoJSON" aria-label={`Експортувати шар ${layer.name}`} onClick={() => exportGeoJSONLayer(layer)}><Download size={13} /></button>
-                <button className="layer-remove" title="Видалити шар" aria-label={`Видалити шар ${layer.name}`} onClick={() => removeLayer(layer.id)}><X size={13} /></button>
-              </div>)}</div>}
-
-            <div className="sidebar-divider" />
-            <div className="legend-title"><MapPin size={15} /> Креслення на карті</div>
-            <div className="draw-tools">
-              <button className={drawMode === "point" ? "draw-tool active" : "draw-tool"} onClick={() => { setDrawPoints([]); setDrawMode(drawMode === "point" ? "none" : "point"); }}>Точка</button>
-              <button className={drawMode === "line" ? "draw-tool active" : "draw-tool"} onClick={() => { setDrawPoints([]); setDrawMode(drawMode === "line" ? "none" : "line"); }}>Лінія</button>
-              <button className={drawMode === "polygon" ? "draw-tool active" : "draw-tool"} onClick={() => { setDrawPoints([]); setDrawMode(drawMode === "polygon" ? "none" : "polygon"); }}>Полігон</button>
-            </div>
-            {drawMode !== "none" && <div className="draw-status">
-              <span>{drawMode === "point" ? "Клацни на карті, щоб поставити точку." : `Познач вершини на карті. Додано: ${drawPoints.length}.`}</span>
-              {drawMode !== "point" && <button className="text-button" onClick={finishDrawing}>Завершити</button>}
-              <button className="text-button" onClick={cancelDrawing}>Скасувати</button>
-            </div>}
-            <div className="sidebar-divider" />
-            <div className="legend-title"><Layers3 size={15} /> Буферний аналіз</div>
-            <label className="field-label">Вихідний шар</label>
-            <div className="select-wrap"><select value={bufferLayerId} onChange={(event) => setBufferLayerId(event.target.value)}><option value="">Вибрати шар…</option>{gisLayers.map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}</select><ChevronDown size={15} /></div>
-            <label className="field-label">Радіус буфера, метрів</label>
-            <input className="buffer-input" type="number" min="1" max="100000" value={bufferMeters} onChange={(event) => setBufferMeters(event.target.value)} />
-            <button className="button button-light layer-import-button" disabled={!gisLayers.length || !bufferLayerId} onClick={createBuffer}>Побудувати буфер</button>
-            <div className="sidebar-divider" />
-            <div className="legend-title"><Layers3 size={15} /> Просторові перетини</div>
-            <label className="field-label">Зона аналізу (наприклад, буфер)</label>
-            <div className="select-wrap"><select value={intersectionZoneId} onChange={(event) => setIntersectionZoneId(event.target.value)}><option value="">Вибрати шар зоною…</option>{gisLayers.map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}</select><ChevronDown size={15} /></div>
-            <label className="field-label">Шар об'єктів для перевірки</label>
-            <div className="select-wrap"><select value={intersectionTargetId} onChange={(event) => setIntersectionTargetId(event.target.value)}><option value="">Вибрати шар об'єктів…</option>{gisLayers.map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}</select><ChevronDown size={15} /></div>
-            <button className="button button-light layer-import-button" disabled={!intersectionZoneId || !intersectionTargetId} onClick={runIntersection}>Знайти об'єкти в зоні</button>
-            <p className="layer-empty">Перевіряється геометричний перетин об'єктів двох шарів. Результат додається окремим шаром; це не є автоматичним епідеміологічним висновком.</p>
-            <div className="privacy-note"><ShieldCheck size={16} /><span>Шари зберігаються локально у браузері. Вони не передаються на сервер і можуть бути недоступні на іншому пристрої.</span></div>
           </aside>
 
           <section className="map-section">
@@ -1175,6 +1132,49 @@ export default function App() {
 
           <aside className="detail-panel">
             <div className="section-title"><MapPin size={17} /><h2>Картка випадку</h2></div>
+            <div className="spatial-tools-panel">
+              <div className="legend-title"><Layers3 size={15} /> Геошари та інструменти</div>
+            <div className="legend-title"><Layers3 size={15} /> Географічні шари <span className="layer-count">{gisLayers.length}</span></div>
+            <button className="button button-light layer-import-button" onClick={() => layerFileRef.current?.click()}><Upload size={14} /> Додати GeoJSON</button>
+            <input ref={layerFileRef} type="file" accept=".geojson,.json,application/geo+json,application/json" hidden onChange={(event) => importGeoJSON(event.target.files?.[0])} />
+            {layerMessage && <div className="layer-message">{layerMessage}</div>}
+            {gisLayers.length === 0 ? <p className="layer-empty">Поки немає власних шарів. Додай GeoJSON із точками, лініями або полігонами.</p> :
+              <div className="layer-list">{gisLayers.map((layer) => <div className="layer-item" key={layer.id}>
+                <label><input type="checkbox" checked={layer.visible} onChange={() => toggleLayer(layer.id)} /><span className="layer-name">{layer.name}</span></label>
+                <span className="layer-meta">{layer.data.features.length} об'єктів</span>
+                <button className="layer-export" title="Показати шар на карті" aria-label={`Масштабувати карту до шару ${layer.name}`} onClick={() => setFitLayerId(layer.id)}><LocateFixed size={13} /></button>
+                <button className="layer-export" title="Перейменувати шар" aria-label={`Перейменувати шар ${layer.name}`} onClick={() => renameLayer(layer)}><Pencil size={13} /></button>
+                <button className="layer-export" title="Експортувати GeoJSON" aria-label={`Експортувати шар ${layer.name}`} onClick={() => exportGeoJSONLayer(layer)}><Download size={13} /></button>
+                <button className="layer-remove" title="Видалити шар" aria-label={`Видалити шар ${layer.name}`} onClick={() => removeLayer(layer.id)}><X size={13} /></button>
+              </div>)}</div>}
+
+            <div className="legend-title"><MapPin size={15} /> Креслення на карті</div>
+            <div className="draw-tools">
+              <button className={drawMode === "point" ? "draw-tool active" : "draw-tool"} onClick={() => { setDrawPoints([]); setDrawMode(drawMode === "point" ? "none" : "point"); }}>Точка</button>
+              <button className={drawMode === "line" ? "draw-tool active" : "draw-tool"} onClick={() => { setDrawPoints([]); setDrawMode(drawMode === "line" ? "none" : "line"); }}>Лінія</button>
+              <button className={drawMode === "polygon" ? "draw-tool active" : "draw-tool"} onClick={() => { setDrawPoints([]); setDrawMode(drawMode === "polygon" ? "none" : "polygon"); }}>Полігон</button>
+            </div>
+            {drawMode !== "none" && <div className="draw-status">
+              <span>{drawMode === "point" ? "Клацни на карті, щоб поставити точку." : `Познач вершини на карті. Додано: ${drawPoints.length}.`}</span>
+              {drawMode !== "point" && <button className="text-button" onClick={finishDrawing}>Завершити</button>}
+              <button className="text-button" onClick={cancelDrawing}>Скасувати</button>
+            </div>}
+            <div className="legend-title"><Layers3 size={15} /> Буферний аналіз</div>
+            <label className="field-label">Вихідний шар</label>
+            <div className="select-wrap"><select value={bufferLayerId} onChange={(event) => setBufferLayerId(event.target.value)}><option value="">Вибрати шар…</option>{gisLayers.map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}</select><ChevronDown size={15} /></div>
+            <label className="field-label">Радіус буфера, метрів</label>
+            <input className="buffer-input" type="number" min="1" max="100000" value={bufferMeters} onChange={(event) => setBufferMeters(event.target.value)} />
+            <button className="button button-light layer-import-button" disabled={!gisLayers.length || !bufferLayerId} onClick={createBuffer}>Побудувати буфер</button>
+            <div className="legend-title"><Layers3 size={15} /> Просторові перетини</div>
+            <label className="field-label">Зона аналізу (наприклад, буфер)</label>
+            <div className="select-wrap"><select value={intersectionZoneId} onChange={(event) => setIntersectionZoneId(event.target.value)}><option value="">Вибрати шар зоною…</option>{gisLayers.map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}</select><ChevronDown size={15} /></div>
+            <label className="field-label">Шар об'єктів для перевірки</label>
+            <div className="select-wrap"><select value={intersectionTargetId} onChange={(event) => setIntersectionTargetId(event.target.value)}><option value="">Вибрати шар об'єктів…</option>{gisLayers.map((layer) => <option key={layer.id} value={layer.id}>{layer.name}</option>)}</select><ChevronDown size={15} /></div>
+            <button className="button button-light layer-import-button" disabled={!intersectionZoneId || !intersectionTargetId} onClick={runIntersection}>Знайти об'єкти в зоні</button>
+            <p className="layer-empty">Перевіряється геометричний перетин об'єктів двох шарів. Результат додається окремим шаром; це не є автоматичним епідеміологічним висновком.</p>
+            <div className="privacy-note"><ShieldCheck size={16} /><span>Шари зберігаються локально у браузері. Вони не передаються на сервер і можуть бути недоступні на іншому пристрої.</span></div>
+            </div>
+            <div className="detail-divider" />
             {selected ? <><div className="detail-status"><span className={selected.status === "Підтверджено" ? "legend-dot confirmed" : "legend-dot investigating"} />{selected.status}</div><h3>{selected.disease}</h3><p className="detail-subtitle">{selected.id}</p><div className="detail-divider" />{[[ "Дата реєстрації", selected.date ],["Територія", selected.hromada],["Населений пункт", selected.settlement || "Не вказано"],["Вік", selected.age === undefined ? "Не вказано" : `${selected.age} років`],["Стать", selected.sex || "Не вказано"],["Широта", selected.latitude === undefined ? "Не вказано" : selected.latitude.toFixed(5)],["Довгота", selected.longitude === undefined ? "Не вказано" : selected.longitude.toFixed(5)]].map(([label, value]) => <div className="detail-field" key={label}><span>{label}</span><strong>{value}</strong></div>)}{selected.notes && <div className="detail-notes"><span>Примітки</span><p>{selected.notes}</p></div>}<button className="button button-light full-button" onClick={() => setSelected(null)}>Очистити вибір</button></> : <div className="detail-empty"><div className="detail-empty-icon"><MapPin size={22} /></div><strong>Випадок не вибрано</strong><p>Обери точку на карті або запис у реєстрі, щоб побачити деталі.</p></div>}
             <div className="alert-note"><AlertTriangle size={16} /><p><strong>Важливо</strong> Просторове скупчення точок саме по собі не підтверджує спалах. Потрібна епідеміологічна оцінка.</p></div>
           </aside>
