@@ -5,6 +5,8 @@ import { booleanIntersects } from "@turf/boolean-intersects";
 import L from "leaflet";
 import { Activity, AlertTriangle, CalendarDays, ChevronDown, Download, FileSpreadsheet, Filter, Layers3, LocateFixed, MapPin, Pencil, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
 import * as XLSX from "xlsx";
+import html2canvas from "html2canvas";
+import { jsPDF } from "jspdf";
 import { REGISTRIES } from "./domain/registries";
 
 type GISLayer = { id: string; name: string; category: string; visible: boolean; data: any; source: string; importedAt: string; };
@@ -310,6 +312,9 @@ export default function App() {
     try { const saved = localStorage.getItem("ternopil-epigis-layers-v1"); return saved ? JSON.parse(saved) as GISLayer[] : []; } catch { return []; }
   });
   const [layerMessage, setLayerMessage] = useState("");
+  const [mapExportFormat, setMapExportFormat] = useState<"png" | "jpeg" | "pdf">("png");
+  const [mapExporting, setMapExporting] = useState(false);
+  const mapExportRef = useRef<HTMLDivElement>(null);
   const [activeRegistryId, setActiveRegistryId] = useState("healthcare");
   const [registryRecords, setRegistryRecords] = useState<RegistryRecord[]>(() => { try { const saved = localStorage.getItem("ternopil-epigis-registry-records-v1"); return saved ? JSON.parse(saved) as RegistryRecord[] : []; } catch { return []; } });
   const [registryFormOpen, setRegistryFormOpen] = useState(false);
@@ -839,6 +844,47 @@ export default function App() {
     }
   };
 
+  const exportMapImage = async () => {
+    const target = mapExportRef.current;
+    if (!target || mapExporting) return;
+    setMapExporting(true);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const canvas = await html2canvas(target, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
+        imageTimeout: 20000
+      });
+      const stamp = new Date().toISOString().slice(0, 10);
+      if (mapExportFormat === "pdf") {
+        const image = canvas.toDataURL("image/png");
+        const pdf = new jsPDF({ orientation: canvas.width >= canvas.height ? "landscape" : "portrait", unit: "mm", format: "a4" });
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const ratio = Math.min(pageWidth / canvas.width, pageHeight / canvas.height);
+        const width = canvas.width * ratio;
+        const height = canvas.height * ratio;
+        pdf.addImage(image, "PNG", (pageWidth - width) / 2, (pageHeight - height) / 2, width, height);
+        pdf.save(`ternopil-epigis-map-${stamp}.pdf`);
+      } else {
+        const mime = mapExportFormat === "jpeg" ? "image/jpeg" : "image/png";
+        const dataUrl = canvas.toDataURL(mime, mapExportFormat === "jpeg" ? 0.92 : undefined);
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = `ternopil-epigis-map-${stamp}.${mapExportFormat === "jpeg" ? "jpg" : "png"}`;
+        link.click();
+      }
+    } catch (error) {
+      console.error("Map export failed", error);
+      setLayerMessage("Не вдалося створити зображення карти. Перевір доступність картографічних тайлів і повтори спробу.");
+    } finally {
+      setMapExporting(false);
+    }
+  };
+
   const exportCsv = () => {
     const header = TEMPLATE_HEADERS.join(",");
     const rows = filtered.map((item) => TEMPLATE_HEADERS.map((key) => {
@@ -1032,8 +1078,8 @@ export default function App() {
           </aside>
 
           <section className="map-section">
-            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{filtered.length + filteredRegistryRecords.length} точкових записів на карті</span></div><div className="top-actions"><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span></div></div>
-            <div className="map-wrap">
+            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{filtered.length + filteredRegistryRecords.length} точкових записів на карті</span></div><div className="top-actions"><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span><select className="map-export-select" aria-label="Формат експорту карти" value={mapExportFormat} onChange={(event) => setMapExportFormat(event.target.value as "png" | "jpeg" | "pdf")}><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="pdf">PDF</option></select><button className="button button-light map-export-button" onClick={exportMapImage} disabled={mapExporting}><Download size={15} /> {mapExporting ? "Створення…" : "Зберегти карту"}</button></div></div>
+            <div className="map-wrap" ref={mapExportRef}>
               <MapContainer center={[49.45, 25.55]} zoom={8} scrollWheelZoom preferCanvas={true} className="leaflet-map">
                 <DrawController mode={drawMode} onMapClick={handleMapDrawClick} />
                 {drawMode === "line" && drawPoints.length > 0 && <Polyline positions={drawPoints} pathOptions={{ color: "#d97706", dashArray: "5 5" }} />}
