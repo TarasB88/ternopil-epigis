@@ -633,11 +633,8 @@ const UI_TRANSLATIONS: Record<string, string> = {
   " Геошари: ": " Geographic layers: ",
   " шарів.": " layers.",
   " Некоректні рядки реєстрів/геошарів: ": " Invalid registry/geographic-layer rows: ",
-  "Потрібні назва об'єкта та коректні координати.": "An object name and valid coordinates are required.",
   "Шар перейменовано на «": "Layer renamed to “",
   "Створено шар «": "Created layer “",
-  "Вибери шар зоною аналізу та шар об'єктів для перевірки.": "Select an analysis-zone layer and a target layer to check.",
-  "Один із вибраних шарів не містить об'єктів.": "One of the selected layers contains no features.",
   "Не вдалося завантажити випадки: сховище браузера переповнене або недоступне.": "Could not save cases: browser storage is full or unavailable.",
 };
 
