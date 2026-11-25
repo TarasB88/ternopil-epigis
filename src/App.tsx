@@ -180,7 +180,7 @@ function FacilityMarkerLayer({ records }: { records: RegistryRecord[] }) {
 
         const index = indices[0];
         const record = visible[index].record;
-        const symbol = facilitySymbol(record.values.facility_type);
+        const symbol = facilitySymbol([record.values.facility_type, record.values.name].filter(Boolean).join(" "));
         const name = String(record.values.name ?? "Медичний заклад");
         const html = `<span class="facility-marker facility-marker--${symbol.kind}" style="--marker-size:${iconSize}px"><span>${symbol.glyph}</span></span>`;
         const icon = L.divIcon({
