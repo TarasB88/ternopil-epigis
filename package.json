@@ -18,7 +18,8 @@
     "xlsx": "^0.18.5",
     "html2canvas": "^1.4.1",
     "@turf/buffer": "^7.2.0",
-    "@turf/boolean-intersects": "^7.2.0"
+    "@turf/boolean-intersects": "^7.2.0",
+    "jspdf": "^3.0.2"
   },
   "devDependencies": {
     "@types/leaflet": "^1.9.16",
