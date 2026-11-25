@@ -1045,7 +1045,7 @@ export default function App() {
           <section className="map-section">
             <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{filtered.length + filteredRegistryRecords.length} точкових записів на карті</span></div><div className="top-actions"><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span><select className="map-export-select" aria-label="Формат експорту карти" value={mapExportFormat} onChange={(event) => setMapExportFormat(event.target.value as "png" | "jpeg" | "pdf")}><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="pdf">PDF</option></select><button className="button button-light map-export-button" onClick={exportMapImage} disabled={mapExporting}><Download size={15} /> {mapExporting ? "Створення…" : "Зберегти карту"}</button></div></div>
             <div className="map-wrap" ref={mapExportRef}>
-              <MapContainer center={[49.45, 25.55]} zoom={8} scrollWheelZoom preferCanvas={true} className="leaflet-map">
+              <MapContainer center={[49.45, 25.55]} zoom={8} zoomDelta={0.25} zoomSnap={0.25} wheelPxPerZoomLevel={120} scrollWheelZoom preferCanvas={true} className="leaflet-map">
                 <DrawController mode={drawMode} onMapClick={handleMapDrawClick} />
                 {drawMode === "line" && drawPoints.length > 0 && <Polyline positions={drawPoints} pathOptions={{ color: "#d97706", dashArray: "5 5" }} />}
                 {drawMode === "polygon" && drawPoints.length > 0 && <Polygon positions={drawPoints} pathOptions={{ color: "#d97706", fillOpacity: 0.12, dashArray: "5 5" }} />}
