@@ -16,8 +16,8 @@ type CaseRecord = {
   date: string;
   hromada: string;
   settlement: string;
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
   status: string;
   age?: number;
   sex?: string;
@@ -45,8 +45,9 @@ const GEO_LAYERS_SHEET = "GeoLayers";
 function FitToCases({ cases }: { cases: CaseRecord[] }) {
   const map = useMap();
   const first = useRef(true);
-  if (first.current && cases.length) {
-    map.setView([cases[0].latitude, cases[0].longitude], 8);
+  const firstLocatedCase = cases.find((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude));
+  if (first.current && firstLocatedCase && firstLocatedCase.latitude !== undefined && firstLocatedCase.longitude !== undefined) {
+    map.setView([firstLocatedCase.latitude, firstLocatedCase.longitude], 8);
     first.current = false;
   }
   return null;
@@ -126,15 +127,23 @@ function toCase(row: Record<string, unknown>, index: number): CaseRecord | null 
   const disease = String(get("disease", "нозологія", "діагноз", "final_diagnosis", "інфекційне захворювання", "назва нозології") ?? "").trim();
   const date = normalizeDate(get("date", "дата", "дата захворювання", "onset_date", "дата початку", "дата реєстрації"));
   const hromada = String(get("hromada", "громада", "територія", "територіальна громада", "назва громади", "отг") ?? "").trim();
-  if (!disease || !date || !hromada || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-  if (latitude < 44 || latitude > 53 || longitude < 20 || longitude > 42) return null;
+  if (!disease || !date || !hromada) return null;
+  const rawLatitude = get("latitude", "lat", "широта", "координата широти", "широта gps");
+  const rawLongitude = get("longitude", "lon", "lng", "довгота", "координата довготи", "довгота gps");
+  const hasLatitude = rawLatitude !== undefined && String(rawLatitude).trim() !== "";
+  const hasLongitude = rawLongitude !== undefined && String(rawLongitude).trim() !== "";
+  const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude);
+  if (hasLatitude !== hasLongitude) return null;
+  if (hasCoordinates && (latitude < 44 || latitude > 53 || longitude < 20 || longitude > 42)) return null;
+  if (hasLatitude && !hasCoordinates) return null;
   const rawAge = get("age", "вік");
   const parsedAge = rawAge === undefined ? Number.NaN : parseSpreadsheetNumber(rawAge);
   return {
     id: String(get("id", "номер", "case_id", "ідентифікатор") ?? ("IMP-" + String(index + 1).padStart(4, "0"))),
     disease, date, hromada,
     settlement: String(get("settlement", "населений пункт", "нп", "населений пункт / місто") ?? ""),
-    latitude, longitude,
+    latitude: hasCoordinates ? latitude : undefined,
+    longitude: hasCoordinates ? longitude : undefined,
     status: String(get("status", "статус") ?? "Не визначено"),
     age: Number.isFinite(parsedAge) ? parsedAge : undefined,
     sex: String(get("sex", "стать") ?? ""),
@@ -284,6 +293,7 @@ export default function App() {
       let caseCount = 0;
       let invalidCases = 0;
       let casesUpdated = false;
+      let noCoordinateCases = 0;
       let caseImportWarning = "";
       if (caseRows !== null) {
         const actualCaseRows = caseRows.filter((row) => {
@@ -297,6 +307,7 @@ export default function App() {
           casesUpdated = true;
           caseCount = parsedCases.length;
           invalidCases = actualCaseRows.length - parsedCases.length;
+          noCoordinateCases = parsedCases.filter((item) => !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)).length;
         } else if (caseRows.length > 0) {
           const detectedHeaders = Object.keys(caseRows[0] ?? {}).join(", ");
           caseImportWarning = " Аркуш випадків знайдено, але не вдалося розпізнати рядки. Заголовки у файлі: " + (detectedHeaders || "не визначені") + ". Перевір назви полів і координати; попередні випадки збережено.";
@@ -414,7 +425,7 @@ export default function App() {
       setDisease("Усі нозології");
       setHromada("Усі громади");
       setSelected(null);
-      const caseSummary = casesUpdated ? " Випадки: " + caseCount + " (відхилено: " + invalidCases + ")." : " Випадки не змінювалися.";
+      const caseSummary = casesUpdated ? " Випадки: " + caseCount + " (без координат: " + noCoordinateCases + ", відхилено: " + invalidCases + ")." : " Випадки не змінювалися.";
       const registrySummary = replacedRegistryIds.length ? " Предметні реєстри: " + importedRegistryRecords.length + " записів у " + replacedRegistryIds.length + " аркушах." : " Предметні реєстри не змінювалися.";
       const layerSummary = geoRows === null || geoRows.length === 0
         ? " Геошари не змінювалися."
@@ -874,7 +885,7 @@ export default function App() {
                 <FitToCases cases={filtered} />
                 <FitToLayer layer={gisLayers.find((layer) => layer.id === fitLayerId) ?? null} />
                 {filteredRegistryRecords.map((record) => <CircleMarker key={record.id} center={[record.latitude, record.longitude]} radius={6} pathOptions={{ color: "#315f9a", fillColor: "#4d83bd", fillOpacity: 0.85, weight: 1.5 }}><Popup><strong>{String(record.values.name ?? "Об’єкт реєстру")}</strong><br />{REGISTRIES.find((registry) => registry.id === record.registryId)?.label}<br />{String(record.values.hromada ?? "")}</Popup></CircleMarker>)}
-                {filtered.map((item) => <CircleMarker key={item.id} center={[item.latitude, item.longitude]} radius={selected?.id === item.id ? 10 : 7} pathOptions={{ color: item.status === "Підтверджено" ? "#126b58" : "#d28a24", fillColor: item.status === "Підтверджено" ? "#21866d" : "#e6a744", fillOpacity: 0.88, weight: selected?.id === item.id ? 3 : 1.5 }} eventHandlers={{ click: () => setSelected(item) }}><Popup><strong>{item.disease}</strong><br />{item.settlement || item.hromada}<br />{item.date}<br />{item.status}</Popup></CircleMarker>)}
+                {filtered.filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude)).map((item) => <CircleMarker key={item.id} center={[item.latitude as number, item.longitude as number]} radius={selected?.id === item.id ? 10 : 7} pathOptions={{ color: item.status === "Підтверджено" ? "#126b58" : "#d28a24", fillColor: item.status === "Підтверджено" ? "#21866d" : "#e6a744", fillOpacity: 0.88, weight: selected?.id === item.id ? 3 : 1.5 }} eventHandlers={{ click: () => setSelected(item) }}><Popup><strong>{item.disease}</strong><br />{item.settlement || item.hromada}<br />{item.date}<br />{item.status}</Popup></CircleMarker>)}
               </MapContainer>
               {filtered.length === 0 && filteredRegistryRecords.length === 0 && <div className="empty-map">За вибраними параметрами записів не знайдено.</div>}
               <div className="map-disclaimer">Координати демонстраційних записів умовні.</div>
@@ -913,7 +924,7 @@ export default function App() {
 
           <aside className="detail-panel">
             <div className="section-title"><MapPin size={17} /><h2>Картка випадку</h2></div>
-            {selected ? <><div className="detail-status"><span className={selected.status === "Підтверджено" ? "legend-dot confirmed" : "legend-dot investigating"} />{selected.status}</div><h3>{selected.disease}</h3><p className="detail-subtitle">{selected.id}</p><div className="detail-divider" />{[[ "Дата реєстрації", selected.date ],["Територія", selected.hromada],["Населений пункт", selected.settlement || "Не вказано"],["Вік", selected.age === undefined ? "Не вказано" : `${selected.age} років`],["Стать", selected.sex || "Не вказано"],["Широта", selected.latitude.toFixed(5)],["Довгота", selected.longitude.toFixed(5)]].map(([label, value]) => <div className="detail-field" key={label}><span>{label}</span><strong>{value}</strong></div>)}{selected.notes && <div className="detail-notes"><span>Примітки</span><p>{selected.notes}</p></div>}<button className="button button-light full-button" onClick={() => setSelected(null)}>Очистити вибір</button></> : <div className="detail-empty"><div className="detail-empty-icon"><MapPin size={22} /></div><strong>Випадок не вибрано</strong><p>Обери точку на карті або запис у реєстрі, щоб побачити деталі.</p></div>}
+            {selected ? <><div className="detail-status"><span className={selected.status === "Підтверджено" ? "legend-dot confirmed" : "legend-dot investigating"} />{selected.status}</div><h3>{selected.disease}</h3><p className="detail-subtitle">{selected.id}</p><div className="detail-divider" />{[[ "Дата реєстрації", selected.date ],["Територія", selected.hromada],["Населений пункт", selected.settlement || "Не вказано"],["Вік", selected.age === undefined ? "Не вказано" : `${selected.age} років`],["Стать", selected.sex || "Не вказано"],["Широта", selected.latitude === undefined ? "Не вказано" : selected.latitude.toFixed(5)],["Довгота", selected.longitude === undefined ? "Не вказано" : selected.longitude.toFixed(5)]].map(([label, value]) => <div className="detail-field" key={label}><span>{label}</span><strong>{value}</strong></div>)}{selected.notes && <div className="detail-notes"><span>Примітки</span><p>{selected.notes}</p></div>}<button className="button button-light full-button" onClick={() => setSelected(null)}>Очистити вибір</button></> : <div className="detail-empty"><div className="detail-empty-icon"><MapPin size={22} /></div><strong>Випадок не вибрано</strong><p>Обери точку на карті або запис у реєстрі, щоб побачити деталі.</p></div>}
             <div className="alert-note"><AlertTriangle size={16} /><p><strong>Важливо</strong> Просторове скупчення точок саме по собі не підтверджує спалах. Потрібна епідеміологічна оцінка.</p></div>
           </aside>
         </section>
