@@ -1281,7 +1281,7 @@ export default function App() {
           <div className="brand-mark"><Activity size={22} strokeWidth={2.5} /></div>
           <div><div className="brand-name">Ternopil <span>EpiGIS</span></div><div className="brand-caption">ЕПІДЕМІОЛОГІЧНЕ КАРТОГРАФУВАННЯ</div></div>
         </div>
-        <div className="top-actions"><button className="button button-light language-switch" onClick={() => setLanguage((current) => current === "uk" ? "en" : "uk")} aria-label="Change language">{language === "uk" ? "EN" : "УКР"}</button><span className="environment"><span className="pulse-dot" /> Локальний режим</span><button className="button button-light" onClick={() => setShowUpload(!showUpload)}><Upload size={16} /> Імпорт даних</button></div>
+        <div className="top-actions"><button className={`button button-light language-switch ${language === "uk" ? "language-switch--uk" : "language-switch--en"}`} onClick={() => setLanguage((current) => current === "uk" ? "en" : "uk")} aria-label={language === "uk" ? "Мова інтерфейсу: українська. Перемкнути на English" : "Interface language: English. Switch to Ukrainian"} aria-pressed={language === "en"}><span className="language-switch__label">{language === "uk" ? "Мова" : "Language"}</span><span className="language-switch__option">УКР</span><span className="language-switch__separator">/</span><span className="language-switch__option">EN</span><span className="language-switch__active">{language === "uk" ? "● УКР" : "● EN"}</span></button><span className="environment"><span className="pulse-dot" /> Локальний режим</span><button className="button button-light" onClick={() => setShowUpload(!showUpload)}><Upload size={16} /> Імпорт даних</button></div>
       </header>
 
       <main className="main-content">
