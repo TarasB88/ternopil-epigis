@@ -877,6 +877,7 @@ export default function App() {
   const confirmed = filtered.filter((item) => item.status === "Підтверджено").length;
   const locations = new Set(filtered.map((item) => item.hromada)).size;
   const activeDiseases = new Set(filtered.map((item) => item.disease)).size;
+  const formatNumber = (value: number) => value.toLocaleString(language === "en" ? "en-US" : "uk-UA");
 
   const importFile = async (file?: File) => {
     if (!file) return;
@@ -1457,10 +1458,10 @@ export default function App() {
         </section>}
 
         <section className="metric-grid">
-          <Metric icon={<Users size={18} />} label="Випадків у вибірці" value={filtered.length.toLocaleString("uk-UA")} note={language === "en" ? "Using active filters" : "За активними фільтрами"} />
-          <Metric icon={<ShieldCheck size={18} />} label="Підтверджено" value={confirmed.toLocaleString("uk-UA")} note={filtered.length ? (language === "en" ? `${Math.round(confirmed / filtered.length * 100)}% of selection` : `${Math.round(confirmed / filtered.length * 100)}% від вибірки`) : "Немає записів"} />
-          <Metric icon={<MapPin size={18} />} label="Громад із випадками" value={locations.toLocaleString("uk-UA")} note={language === "en" ? "Within current selection" : "У межах поточного відбору"} />
-          <Metric icon={<Activity size={18} />} label="Нозологій" value={activeDiseases.toLocaleString("uk-UA")} note={language === "en" ? "Distinct diagnoses in selection" : "Різних діагнозів у вибірці"} />
+          <Metric icon={<Users size={18} />} label="Випадків у вибірці" value={formatNumber(filtered.length)} note={language === "en" ? "Using active filters" : "За активними фільтрами"} />
+          <Metric icon={<ShieldCheck size={18} />} label="Підтверджено" value={formatNumber(confirmed)} note={filtered.length ? (language === "en" ? `${Math.round(confirmed / filtered.length * 100)}% of selection` : `${Math.round(confirmed / filtered.length * 100)}% від вибірки`) : "Немає записів"} />
+          <Metric icon={<MapPin size={18} />} label="Громад із випадками" value={formatNumber(locations)} note={language === "en" ? "Within current selection" : "У межах поточного відбору"} />
+          <Metric icon={<Activity size={18} />} label="Нозологій" value={formatNumber(activeDiseases)} note={language === "en" ? "Distinct diagnoses in selection" : "Різних діагнозів у вибірці"} />
         </section>
 
         <section className="workspace">
