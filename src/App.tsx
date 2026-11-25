@@ -671,12 +671,12 @@ function translateSystemMessage(value: string, language: "uk" | "en"): string {
   const exact = UI_TRANSLATIONS[value];
   if (exact) return exact;
   const patterns: Array<[RegExp, string]> = [
-    [/^Додано шар «(.*)»: (\\d+) об'єктів\\. Відхилено некоректних або непідтримуваних: (\\d+)\\.$/, "Layer added: $1 ($2 features). Invalid or unsupported features rejected: $3."],
-    [/^Шар перейменовано на «(.*)»\\.$/, "Layer renamed to “$1”."],
-    [/^Створено шар «(.*)»\\.$/, "Layer created: “$1”."],
-    [/^Побудовано буфер (\\d+) м для (\\d+) об'єктів шару «(.*)»\\.$/, "Created a $1 m buffer for $2 features in layer “$3”."],
-    [/^Знайдено об'єктів реєстрів: (\\d+)$/, "Registry objects found: $1"],
-    [/^Познач вершини на карті\\. Додано: (\\d+)\\.$/, "Mark vertices on the map. Added: $1."]
+    [/^Додано шар «(.*)»: ([0-9]+) об'єктів\. Відхилено некоректних або непідтримуваних: ([0-9]+)\.$/, "Layer added: $1 ($2 features). Invalid or unsupported features rejected: $3."],
+    [/^Шар перейменовано на «(.*)»\.$/, "Layer renamed to “$1”."],
+    [/^Створено шар «(.*)»\.$/, "Layer created: “$1”."],
+    [/^Побудовано буфер ([0-9]+) м для ([0-9]+) об'єктів шару «(.*)»\.$/, "Created a $1 m buffer for $2 features in layer “$3”."],
+    [/^Знайдено об'єктів реєстрів: ([0-9]+)$/, "Registry objects found: $1"],
+    [/^Познач вершини на карті\. Додано: ([0-9]+)\.$/, "Mark vertices on the map. Added: $1."]
   ];
   for (const [pattern, replacement] of patterns) {
     if (pattern.test(value)) return value.replace(pattern, replacement);
