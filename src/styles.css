@@ -165,3 +165,13 @@
   .metric-value{font-size:19px}
   .metric-note{font-size:7px}
 }
+
+
+/* External thematic map source notices and live overlay status */
+.thematic-map-status{position:absolute;z-index:650;right:10px;bottom:10px;max-width:min(360px,calc(100% - 20px));padding:6px 9px;border:1px solid #dce6e0;border-radius:7px;background:#fffffff0;color:#52665b;font-size:10px;line-height:1.35;box-shadow:0 2px 9px #00000012;pointer-events:none}
+.thematic-map-source{position:absolute;z-index:700;top:14px;right:14px;display:flex;flex-direction:column;gap:7px;width:min(330px,calc(100% - 28px));padding:13px 15px;border:1px solid #d7e2da;border-radius:10px;background:#fffffff2;box-shadow:0 4px 18px #00000018;color:#42564a}
+.thematic-map-source strong{font-size:12px;line-height:1.35;color:#244438}
+.thematic-map-source span{font-size:10px;line-height:1.5;color:#65776c}
+.thematic-map-source a{align-self:flex-start;color:#176b55;font-size:10px;font-weight:700;text-decoration:none;border-bottom:1px solid #8bb6a4;padding-bottom:1px}
+.thematic-map-source a:hover{color:#0b4938;border-color:#0b4938}
+@media(max-width:760px){.thematic-map-source{top:9px;right:9px;width:min(290px,calc(100% - 18px));padding:10px 12px}.thematic-map-status{right:8px;bottom:8px;font-size:9px}}
