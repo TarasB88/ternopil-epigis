@@ -1036,6 +1036,7 @@ export default function App() {
               {filtered.length === 0 && filteredRegistryRecords.length === 0 && <div className="empty-map">За вибраними параметрами записів не знайдено.</div>}
               <div className="map-disclaimer">Координати демонстраційних записів умовні.</div>
             </div>
+            {filteredRegistryRecords.some((record) => record.registryId === "healthcare") && <div className="facility-map-legend"><span><i className="legend-hospital">✚</i> Лікарні</span><span><i className="legend-primary">⌂</i> Первинна допомога</span><span><i className="legend-dental">✦</i> Стоматології</span><span><i className="legend-emergency">✚</i> Екстрена допомога</span><span><i className="legend-laboratory">⚗</i> Лабораторії</span><span><i className="legend-clinic">●</i> Приватні центри</span></div>}
             {intersectionResultLayerId && gisLayers.some((layer) => layer.id === intersectionResultLayerId) && (() => {
               const resultLayer = gisLayers.find((layer) => layer.id === intersectionResultLayerId)!;
               const features = resultLayer.data?.features ?? [];
