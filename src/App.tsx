@@ -314,7 +314,14 @@ export default function App() {
           noCoordinateCases = parsedCases.filter((item) => !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)).length;
         } else if (caseRows.length > 0) {
           const detectedHeaders = Object.keys(caseRows[0] ?? {}).join(", ");
-          caseImportWarning = " Аркуш випадків знайдено, але не вдалося розпізнати рядки. Заголовки у файлі: " + (detectedHeaders || "не визначені") + ". Перевір назви полів і координати; попередні випадки збережено.";
+          const onlyExampleRows = actualCaseRows.length === 0 && caseRows.every((row) => {
+            const id = String(row.id ?? row.ID ?? "").trim().toLocaleUpperCase("uk-UA");
+            const notes = String(row.notes ?? row.примітки ?? "").toLocaleLowerCase("uk-UA");
+            return id === "CASE-0001" && (notes.includes("приклад") || notes.includes("зразок"));
+          });
+          caseImportWarning = onlyExampleRows
+            ? " Аркуш Cases містить лише демонстраційний рядок CASE-0001 ("Приклад — замінити даними"). Його пропущено; додай реальні записи починаючи з наступного рядка. Попередні випадки збережено."
+            : " Аркуш випадків знайдено, але жоден рядок не пройшов перевірку обов’язкових полів disease і date. Перевір значення у рядках; заголовки: " + (detectedHeaders || "не визначені") + ". Попередні випадки збережено.";
         }
       }
 
