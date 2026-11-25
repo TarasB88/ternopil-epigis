@@ -260,7 +260,8 @@ export default function App() {
         const sheetName = REGISTRY_SHEET_NAMES[registry.id];
         const rows = readRows(sheetName);
         if (rows === null) return;
-        replacedRegistryIds.push(registry.id);
+        const stagedRecords: RegistryRecord[] = [];
+        let sheetInvalidRows = 0;
         rows.forEach((row, index) => {
           const getValue = (...keys: string[]) => {
             for (const key of keys) {
@@ -286,9 +287,9 @@ export default function App() {
           });
           const validCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude) && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
           const hasRequired = registry.fields.filter((field) => field.required).every((field) => values[field.key] !== undefined && String(values[field.key]).trim() !== "");
-          if (!validCoordinates || !hasRequired) { invalidRegistryRows += 1; return; }
+          if (!validCoordinates || !hasRequired) { sheetInvalidRows += 1; return; }
           const fallbackId = registry.id + ":" + String(values.object_id ?? values.name ?? "record") + ":" + index;
-          importedRegistryRecords.push({
+          stagedRecords.push({
             id: String(getValue("record_id", "recordId", "_record_id") ?? fallbackId),
             registryId: registry.id,
             values,
@@ -297,6 +298,12 @@ export default function App() {
             createdAt: String(getValue("created_at", "createdAt") ?? new Date().toISOString())
           });
         });
+        if (sheetInvalidRows > 0) {
+          invalidRegistryRows += sheetInvalidRows;
+          return;
+        }
+        replacedRegistryIds.push(registry.id);
+        importedRegistryRecords.push(...stagedRecords);
       });
       if (replacedRegistryIds.length) {
         setRegistryRecords((current) => [
@@ -334,8 +341,10 @@ export default function App() {
             });
           } catch { invalidLayers += 1; }
         });
-        setGisLayers(layers);
-        importedLayers = layers.length;
+        if (invalidLayers === 0) {
+          setGisLayers(layers);
+          importedLayers = layers.length;
+        }
       }
 
       if (caseRows === null && replacedRegistryIds.length === 0 && geoRows === null) {
