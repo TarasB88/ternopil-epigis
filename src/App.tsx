@@ -102,17 +102,24 @@ function parseSpreadsheetNumber(value: unknown): number {
 }
 
 function normalizeDate(value: unknown): string {
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
-  if (typeof value === "number") {
+  if (value instanceof Date && Number.isFinite(value.getTime())) {
+    return [value.getFullYear(), String(value.getMonth() + 1).padStart(2, "0"), String(value.getDate()).padStart(2, "0")].join("-");
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
     const parsed = XLSX.SSF.parse_date_code(value);
     if (parsed) return [parsed.y, String(parsed.m).padStart(2, "0"), String(parsed.d).padStart(2, "0")].join("-");
   }
   const text = String(value ?? "").trim();
-  if (/^\d{2}\.\d{2}\.\d{4}$/.test(text)) {
-    const [d, m, y] = text.split(".");
-    return `${y}-${m}-${d}`;
+  const european = text.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})/);
+  if (european) return `${european[3]}-${european[2].padStart(2, "0")}-${european[1].padStart(2, "0")}`;
+  const iso = text.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (iso) return iso[1];
+  if (/^\d+(?:[.,]\d+)?$/.test(text)) {
+    const serial = Number(text.replace(",", "."));
+    const parsed = XLSX.SSF.parse_date_code(serial);
+    if (parsed) return [parsed.y, String(parsed.m).padStart(2, "0"), String(parsed.d).padStart(2, "0")].join("-");
   }
-  return text.slice(0, 10);
+  return "";
 }
 
 function toCase(row: Record<string, unknown>, index: number): CaseRecord | null {
@@ -122,20 +129,17 @@ function toCase(row: Record<string, unknown>, index: number): CaseRecord | null 
     const found = normalizedEntries.find(([key, value]) => Array.from(aliases).some((alias) => key === alias || (alias.length >= 4 && key.startsWith(alias))) && value !== undefined && value !== null && String(value).trim() !== "");
     return found?.[1];
   };
-  const latitude = parseSpreadsheetNumber(get("latitude", "lat", "широта", "координата широти", "широта gps"));
-  const longitude = parseSpreadsheetNumber(get("longitude", "lon", "lng", "довгота", "координата довготи", "довгота gps"));
-  const disease = String(get("disease", "нозологія", "діагноз", "final_diagnosis", "інфекційне захворювання", "назва нозології") ?? "").trim();
-  const date = normalizeDate(get("date", "дата", "дата захворювання", "onset_date", "дата початку", "дата реєстрації"));
-  const hromada = String(get("hromada", "громада", "територія", "територіальна громада", "назва громади", "отг") ?? "").trim();
-  if (!disease || !date || !hromada) return null;
   const rawLatitude = get("latitude", "lat", "широта", "координата широти", "широта gps");
   const rawLongitude = get("longitude", "lon", "lng", "довгота", "координата довготи", "довгота gps");
-  const hasLatitude = rawLatitude !== undefined && String(rawLatitude).trim() !== "";
-  const hasLongitude = rawLongitude !== undefined && String(rawLongitude).trim() !== "";
-  const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude);
-  if (hasLatitude !== hasLongitude) return null;
-  if (hasCoordinates && (latitude < 44 || latitude > 53 || longitude < 20 || longitude > 42)) return null;
-  if (hasLatitude && !hasCoordinates) return null;
+  const latitude = parseSpreadsheetNumber(rawLatitude);
+  const longitude = parseSpreadsheetNumber(rawLongitude);
+  const disease = String(get("disease", "нозологія", "діагноз", "final_diagnosis", "інфекційне захворювання", "назва нозології") ?? "").trim();
+  const date = normalizeDate(get("date", "дата", "дата захворювання", "onset_date", "дата початку", "дата реєстрації"));
+  const hromada = String(get("hromada", "громада", "територія", "територіальна громада", "назва громади", "отг") ?? "").trim() || "Не визначено";
+  // Keep epidemiological records even when location coordinates are absent or incomplete.
+  if (!disease || !date) return null;
+  const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude) &&
+    latitude >= 44 && latitude <= 53 && longitude >= 20 && longitude <= 42;
   const rawAge = get("age", "вік");
   const parsedAge = rawAge === undefined ? Number.NaN : parseSpreadsheetNumber(rawAge);
   return {
