@@ -85,6 +85,21 @@ function DrawController({ mode, onMapClick }: { mode: DrawMode; onMapClick: (lat
   return null;
 }
 
+function normalizeHeaderKey(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .toLocaleLowerCase("uk-UA")
+    .normalize("NFKC")
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function parseSpreadsheetNumber(value: unknown): number {
+  if (typeof value === "number") return value;
+  const text = String(value ?? "").trim().replace(/[\s\u00a0]/g, "").replace(",", ".");
+  if (!text) return Number.NaN;
+  return Number(text);
+}
+
 function normalizeDate(value: unknown): string {
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   if (typeof value === "number") {
@@ -100,32 +115,32 @@ function normalizeDate(value: unknown): string {
 }
 
 function toCase(row: Record<string, unknown>, index: number): CaseRecord | null {
+  const normalizedEntries = Object.entries(row).map(([key, value]) => [normalizeHeaderKey(key), value] as const);
   const get = (...keys: string[]) => {
-    for (const key of keys) {
-      const found = Object.keys(row).find((candidate) => candidate.trim().toLowerCase() === key.toLowerCase());
-      if (found !== undefined && row[found] !== undefined && row[found] !== "") return row[found];
-    }
-    return undefined;
+    const aliases = new Set(keys.map(normalizeHeaderKey));
+    const found = normalizedEntries.find(([key, value]) => aliases.has(key) && value !== undefined && value !== null && String(value).trim() !== "");
+    return found?.[1];
   };
-  const latitude = Number(get("latitude", "lat", "широта"));
-  const longitude = Number(get("longitude", "lon", "lng", "довгота"));
-  const disease = String(get("disease", "нозологія", "діагноз", "final_diagnosis") ?? "").trim();
-  const date = normalizeDate(get("date", "дата", "дата захворювання", "onset_date"));
-  const hromada = String(get("hromada", "громада", "територія") ?? "").trim();
+  const latitude = parseSpreadsheetNumber(get("latitude", "lat", "широта", "координата широти", "широта gps"));
+  const longitude = parseSpreadsheetNumber(get("longitude", "lon", "lng", "довгота", "координата довготи", "довгота gps"));
+  const disease = String(get("disease", "нозологія", "діагноз", "final_diagnosis", "інфекційне захворювання", "назва нозології") ?? "").trim();
+  const date = normalizeDate(get("date", "дата", "дата захворювання", "onset_date", "дата початку", "дата реєстрації"));
+  const hromada = String(get("hromada", "громада", "територія", "територіальна громада", "назва громади", "отг") ?? "").trim();
   if (!disease || !date || !hromada || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
   if (latitude < 44 || latitude > 53 || longitude < 20 || longitude > 42) return null;
+  const rawAge = get("age", "вік");
+  const parsedAge = rawAge === undefined ? Number.NaN : parseSpreadsheetNumber(rawAge);
   return {
-    id: String(get("id", "номер", "case_id") ?? `IMP-${String(index + 1).padStart(4, "0")}`),
+    id: String(get("id", "номер", "case_id", "ідентифікатор") ?? ("IMP-" + String(index + 1).padStart(4, "0"))),
     disease, date, hromada,
-    settlement: String(get("settlement", "населений пункт", "нп") ?? ""),
+    settlement: String(get("settlement", "населений пункт", "нп", "населений пункт / місто") ?? ""),
     latitude, longitude,
     status: String(get("status", "статус") ?? "Не визначено"),
-    age: Number.isFinite(Number(get("age", "вік"))) ? Number(get("age", "вік")) : undefined,
+    age: Number.isFinite(parsedAge) ? parsedAge : undefined,
     sex: String(get("sex", "стать") ?? ""),
     notes: String(get("notes", "примітки", "коментар") ?? "")
   };
 }
-
 function hasValidGeoJSONCoordinates(value: unknown): boolean {
   if (!Array.isArray(value) || value.length === 0) return false;
   if (typeof value[0] === "number" && typeof value[1] === "number") {
@@ -227,13 +242,45 @@ export default function App() {
     try {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-      const readRows = (sheetName: string): Record<string, unknown>[] | null => {
-        const sheet = workbook.Sheets[sheetName];
-        return sheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" }) : null;
+      const findSheetName = (sheetName: string, aliases: string[] = []) => {
+        const wanted = new Set([sheetName, ...aliases].map(normalizeHeaderKey));
+        return workbook.SheetNames.find((candidate) => wanted.has(normalizeHeaderKey(candidate)));
       };
-      const hasCasesSheet = workbook.SheetNames.includes("Cases");
+      const readRows = (sheetName: string, headerGroups: string[][] = [], sheetAliases: string[] = []): Record<string, unknown>[] | null => {
+        const actualSheetName = findSheetName(sheetName, sheetAliases);
+        if (!actualSheetName) return null;
+        const sheet = workbook.Sheets[actualSheetName];
+        const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", blankrows: true, raw: true });
+        let headerRow = 0;
+        if (headerGroups.length) {
+          let bestScore = 0;
+          const scanLimit = Math.min(matrix.length, 20);
+          for (let rowIndex = 0; rowIndex < scanLimit; rowIndex += 1) {
+            const cells = new Set((matrix[rowIndex] ?? []).map(normalizeHeaderKey).filter(Boolean));
+            const score = headerGroups.filter((group) => group.some((alias) => cells.has(normalizeHeaderKey(alias)))).length;
+            if (score > bestScore) {
+              bestScore = score;
+              headerRow = rowIndex;
+            }
+          }
+        }
+        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { range: headerRow, defval: "", raw: true });
+        return rows.filter((row) => Object.values(row).some((value) => String(value ?? "").trim() !== ""));
+      };
+      const caseHeaderGroups = [
+        ["disease", "нозологія", "діагноз", "final_diagnosis", "інфекційне захворювання", "назва нозології"],
+        ["date", "дата", "дата захворювання", "onset_date", "дата початку", "дата реєстрації"],
+        ["hromada", "громада", "територія", "територіальна громада", "назва громади", "отг"],
+        ["latitude", "lat", "широта", "широта gps"],
+        ["longitude", "lon", "lng", "довгота", "довгота gps"]
+      ];
+      const hasCasesSheet = Boolean(findSheetName("Cases", ["Випадки", "Випадки інфекційної захворюваності"]));
       const isLegacySingleSheet = !hasCasesSheet && workbook.SheetNames.length === 1;
-      const caseRows = hasCasesSheet ? (readRows("Cases") ?? []) : isLegacySingleSheet ? (readRows(workbook.SheetNames[0]) ?? []) : null;
+      const caseRows = hasCasesSheet
+        ? readRows("Cases", caseHeaderGroups, ["Випадки", "Випадки інфекційної захворюваності"]) ?? []
+        : isLegacySingleSheet
+          ? readRows(workbook.SheetNames[0], caseHeaderGroups)
+          : null;
       let caseCount = 0;
       let invalidCases = 0;
       let casesUpdated = false;
@@ -251,7 +298,8 @@ export default function App() {
           caseCount = parsedCases.length;
           invalidCases = actualCaseRows.length - parsedCases.length;
         } else if (caseRows.length > 0) {
-          caseImportWarning = " Аркуш випадків не пройшов перевірку; попередні випадки збережено.";
+          const detectedHeaders = Object.keys(caseRows[0] ?? {}).join(", ");
+          caseImportWarning = " Аркуш випадків знайдено, але не вдалося розпізнати рядки. Заголовки у файлі: " + (detectedHeaders || "не визначені") + ". Перевір назви полів і координати; попередні випадки збережено.";
         }
       }
 
@@ -260,26 +308,32 @@ export default function App() {
       let invalidRegistryRows = 0;
       REGISTRIES.forEach((registry) => {
         const sheetName = REGISTRY_SHEET_NAMES[registry.id];
-        const rows = readRows(sheetName);
+        const registryHeaderGroups = [
+          ...registry.fields.map((field) => [field.key, field.label]),
+          ["latitude", "широта", "lat"],
+          ["longitude", "довгота", "lon", "lng"],
+          ["record_id", "recordId", "_record_id"]
+        ];
+        const rows = readRows(sheetName, registryHeaderGroups, [registry.label]);
         if (rows === null || rows.length === 0) return;
         const stagedRecords: RegistryRecord[] = [];
         let sheetInvalidRows = 0;
         rows.forEach((row, index) => {
           const getValue = (...keys: string[]) => {
             for (const key of keys) {
-              const found = Object.keys(row).find((candidate) => candidate.trim().toLocaleLowerCase("uk-UA") === key.toLocaleLowerCase("uk-UA"));
+              const found = Object.keys(row).find((candidate) => normalizeHeaderKey(candidate) === normalizeHeaderKey(key));
               if (found !== undefined && row[found] !== undefined && row[found] !== "") return row[found];
             }
             return undefined;
           };
-          const latitude = Number(getValue("latitude", "широта"));
-          const longitude = Number(getValue("longitude", "довгота"));
+          const latitude = parseSpreadsheetNumber(getValue("latitude", "широта", "lat"));
+          const longitude = parseSpreadsheetNumber(getValue("longitude", "довгота", "lon", "lng"));
           const values: Record<string, string | number> = {};
           registry.fields.forEach((field) => {
             const raw = getValue(field.key, field.label);
             if (raw === undefined || raw === null || raw === "") return;
             if (field.type === "number") {
-              const numeric = Number(raw);
+              const numeric = parseSpreadsheetNumber(raw);
               if (Number.isFinite(numeric)) values[field.key] = numeric;
             } else if (field.type === "date") {
               values[field.key] = normalizeDate(raw);
@@ -316,7 +370,7 @@ export default function App() {
 
       let importedLayers = 0;
       let invalidLayers = 0;
-      const geoRows = readRows(GEO_LAYERS_SHEET);
+      const geoRows = readRows(GEO_LAYERS_SHEET, [["layer_id"], ["layer_name"], ["geojson_chunk"]], ["Географічні шари"]);
       if (geoRows !== null) {
         const grouped = new Map<string, { meta: Record<string, unknown>; chunks: Array<{ index: number; value: string }> }>();
         geoRows.forEach((row, index) => {
