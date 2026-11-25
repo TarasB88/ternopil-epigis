@@ -1114,7 +1114,7 @@ export default function App() {
   };
 
 
-  return (
+  return localizeNode((
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
