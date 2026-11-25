@@ -539,6 +539,9 @@ export default function App() {
               values[field.key] = String(raw).trim();
             }
           });
+          if (registry.id === "healthcare" && isNszuDivisionsFile) {
+            values.source = "НСЗУ — pmg_legal_entity_divisions_info.csv";
+          }
           const validCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude) && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
           const hasRequired = registry.fields.filter((field) => field.required).every((field) => values[field.key] !== undefined && String(values[field.key]).trim() !== "");
           if (!validCoordinates || !hasRequired) { sheetInvalidRows += 1; return; }
