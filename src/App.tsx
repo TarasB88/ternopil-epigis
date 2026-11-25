@@ -757,7 +757,16 @@ function translateSystemMessage(value: string, language: "uk" | "en"): string {
 
 function localizeNode(node: React.ReactNode, language: "uk" | "en"): React.ReactNode {
   if (language === "uk") return node;
-  if (typeof node === "string") return UI_TRANSLATIONS[node] ?? node;
+  if (typeof node === "string") {
+    // JSX text nodes may include formatting whitespace around labels and headings.
+    // Match only the trimmed UI label and preserve the original surrounding whitespace.
+    const trimmed = node.trim();
+    if (!trimmed) return node;
+    const translated = UI_TRANSLATIONS[trimmed];
+    if (!translated) return node;
+    const leadingWhitespace = node.length - node.trimStart().length;
+    return node.slice(0, leadingWhitespace) + translated + node.slice(leadingWhitespace + trimmed.length);
+  }
   if (typeof node === "number" || node === null || node === undefined || typeof node === "boolean") return node;
   if (Array.isArray(node)) return node.map((child) => localizeNode(child, language));
   if (isValidElement(node)) {
