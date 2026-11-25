@@ -805,7 +805,46 @@ export default function App() {
   const [layerMessage, setLayerMessage] = useState("");
   const [mapExportFormat, setMapExportFormat] = useState<"png" | "jpeg" | "pdf">("png");
   const [mapExporting, setMapExporting] = useState(false);
-  const [mapBaseLayer, setMapBaseLayer] = useState<"street" | "satellite">("street");
+  const [mapBaseLayer, setMapBaseLayer] = useState<"street" | "satellite" | "seismic" | "radiological" | "environmental" | "meteorological">("street");
+  const [seismicGeoJson, setSeismicGeoJson] = useState<any>(null);
+  const [seismicLoading, setSeismicLoading] = useState(false);
+  const [seismicMessage, setSeismicMessage] = useState("");
+  const [radarTileUrl, setRadarTileUrl] = useState("");
+  const [radarMessage, setRadarMessage] = useState("");
+  useEffect(() => {
+    if (mapBaseLayer !== "seismic") return;
+    const controller = new AbortController();
+    const start = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    setSeismicLoading(true);
+    setSeismicMessage("");
+    fetch(`https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=${start}&minlatitude=47.3&maxlatitude=50.8&minlongitude=22.2&maxlongitude=27.8&minmagnitude=1.0&orderby=time-asc&limit=2000`, { signal: controller.signal })
+      .then((response) => { if (!response.ok) throw new Error("USGS"); return response.json(); })
+      .then((data) => {
+        setSeismicGeoJson(data);
+        if (!Array.isArray(data?.features) || data.features.length === 0) setSeismicMessage(language === "en" ? "No events in the selected area and period." : "За вибраний період у межах області подій не виявлено.");
+      })
+      .catch((error) => { if (error.name !== "AbortError") setSeismicMessage(language === "en" ? "USGS seismic data are temporarily unavailable." : "Дані USGS тимчасово недоступні."); })
+      .finally(() => { if (!controller.signal.aborted) setSeismicLoading(false); });
+    return () => controller.abort();
+  }, [mapBaseLayer, language]);
+
+  useEffect(() => {
+    if (mapBaseLayer !== "meteorological") return;
+    const controller = new AbortController();
+    setRadarTileUrl("");
+    setRadarMessage("");
+    fetch("https://api.rainviewer.com/public/weather-maps.json", { signal: controller.signal })
+      .then((response) => { if (!response.ok) throw new Error("RainViewer"); return response.json(); })
+      .then((data) => {
+        const frames = data?.radar?.past ?? [];
+        const latest = frames[frames.length - 1];
+        if (!data?.host || !latest?.path) throw new Error("No radar frame");
+        setRadarTileUrl(`${data.host}${latest.path}/256/{z}/{x}/{y}/2/1_1.png`);
+      })
+      .catch((error) => { if (error.name !== "AbortError") setRadarMessage(language === "en" ? "Weather radar is temporarily unavailable." : "Метеорологічний радар тимчасово недоступний."); });
+    return () => controller.abort();
+  }, [mapBaseLayer, language]);
+
   const mapExportRef = useRef<HTMLDivElement>(null);
   const [activeRegistryId, setActiveRegistryId] = useState("healthcare");
   const [registryRecords, setRegistryRecords] = useState<RegistryRecord[]>(() => { try { const saved = localStorage.getItem("ternopil-epigis-registry-records-v1"); return saved ? JSON.parse(saved) as RegistryRecord[] : []; } catch { return []; } });
@@ -1560,7 +1599,7 @@ export default function App() {
           </aside>
 
           <section className="map-section">
-            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{language === "en" ? `${filtered.length + filteredRegistryRecords.length} point records on map` : `${filtered.length + filteredRegistryRecords.length} точкових записів на карті`}</span></div><div className="top-actions"><select className="map-export-select map-layer-select" aria-label="Підкладка карти" value={mapBaseLayer} onChange={(event) => setMapBaseLayer(event.target.value as "street" | "satellite")}><option value="street">Вулична карта</option><option value="satellite">Супутник</option></select><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span><select className="map-export-select" aria-label="Формат експорту карти" value={mapExportFormat} onChange={(event) => setMapExportFormat(event.target.value as "png" | "jpeg" | "pdf")}><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="pdf">PDF</option></select><button className="button button-light map-export-button" onClick={exportMapImage} disabled={mapExporting}><Download size={15} /> {mapExporting ? (language === "en" ? "Creating…" : "Створення…") : "Зберегти карту"}</button></div></div>
+            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{language === "en" ? `${filtered.length + filteredRegistryRecords.length} point records on map` : `${filtered.length + filteredRegistryRecords.length} точкових записів на карті`}</span></div><div className="top-actions"><select className="map-export-select map-layer-select" aria-label={language === "en" ? "Map type" : "Тип карти"} value={mapBaseLayer} onChange={(event) => setMapBaseLayer(event.target.value as typeof mapBaseLayer)}><option value="street">{language === "en" ? "Street map" : "Вулична карта"}</option><option value="satellite">{language === "en" ? "Satellite" : "Супутник"}</option><option value="seismic">{language === "en" ? "Seismological" : "Сейсмологічна"}</option><option value="radiological">{language === "en" ? "Radiological" : "Радіологічна"}</option><option value="environmental">{language === "en" ? "Environmental" : "Екологічна"}</option><option value="meteorological">{language === "en" ? "Meteorological" : "Метеорологічна"}</option></select><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span><select className="map-export-select" aria-label="Формат експорту карти" value={mapExportFormat} onChange={(event) => setMapExportFormat(event.target.value as "png" | "jpeg" | "pdf")}><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="pdf">PDF</option></select><button className="button button-light map-export-button" onClick={exportMapImage} disabled={mapExporting}><Download size={15} /> {mapExporting ? (language === "en" ? "Creating…" : "Створення…") : "Зберегти карту"}</button></div></div>
             <div className="map-wrap" ref={mapExportRef}>
               <MapContainer center={[49.45, 25.55]} zoom={8} zoomDelta={0.25} zoomSnap={0.25} wheelPxPerZoomLevel={120} scrollWheelZoom preferCanvas={true} className="leaflet-map">
                 <DrawController mode={drawMode} onMapClick={handleMapDrawClick} />
@@ -1568,6 +1607,9 @@ export default function App() {
                 {drawMode === "polygon" && drawPoints.length > 0 && <Polygon positions={drawPoints} pathOptions={{ color: "#d97706", fillOpacity: 0.12, dashArray: "5 5" }} />}
 
                 {mapBaseLayer === "satellite" ? <TileLayer attribution='&copy; Esri, Maxar, Earthstar Geographics' url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" crossOrigin="anonymous" /> : <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" crossOrigin="anonymous" />}
+                {mapBaseLayer === "meteorological" && radarTileUrl && <TileLayer attribution='Weather data &copy; <a href="https://www.rainviewer.com/">RainViewer</a>' url={radarTileUrl} opacity={0.68} maxZoom={7} zIndex={450} />}
+                {mapBaseLayer === "seismic" && seismicGeoJson && <GeoJSON data={seismicGeoJson} pointToLayer={(feature, latlng) => L.circleMarker(latlng, { radius: Math.max(4, Math.min(11, 3 + Number(feature?.properties?.mag ?? 0) * 1.5)), color: "#7c2d12", weight: 1.2, fillColor: "#ea580c", fillOpacity: 0.78 })} onEachFeature={(feature, layer) => { const p = feature?.properties ?? {}; const safe = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] ?? char)); const depth = feature?.geometry?.coordinates?.[2]; layer.bindPopup(`<strong>${safe(p.place || "Earthquake")}</strong><br/>Magnitude: ${safe(p.mag)}<br/>Depth: ${safe(depth)} km<br/><a href="${safe(p.url)}" target="_blank" rel="noopener noreferrer">USGS event details</a>`); }} />}
+
                 {hromadaBoundaries && <GeoJSON
                   data={hromadaBoundaries}
                   style={(feature) => {
@@ -1620,6 +1662,10 @@ export default function App() {
                 {filteredRegistryRecords.filter((record) => record.registryId !== "healthcare").map((record) => <CircleMarker key={record.id} center={[record.latitude, record.longitude]} radius={6} pathOptions={{ color: "#315f9a", fillColor: "#4d83bd", fillOpacity: 0.85, weight: 1.5 }}><Popup><strong>{record.values.name == null || String(record.values.name).trim() === "" ? translateUI("Об’єкт реєстру", language) : String(record.values.name)}</strong><br />{translateUI(REGISTRIES.find((registry) => registry.id === record.registryId)?.label ?? record.registryId, language)}<br />{String(record.values.hromada ?? "")}</Popup></CircleMarker>)}
                 {filtered.filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude)).map((item) => <CircleMarker key={item.id} center={[item.latitude as number, item.longitude as number]} radius={selected?.id === item.id ? 10 : 7} pathOptions={{ color: item.status === "Підтверджено" ? "#126b58" : "#d28a24", fillColor: item.status === "Підтверджено" ? "#21866d" : "#e6a744", fillOpacity: 0.88, weight: selected?.id === item.id ? 3 : 1.5 }} eventHandlers={{ click: () => setSelected(item) }}><Popup><strong>{item.disease}</strong><br />{item.settlement || item.hromada}<br />{item.date}<br />{translateCaseStatus(item.status, language)}</Popup></CircleMarker>)}
               </MapContainer>
+              {mapBaseLayer === "seismic" && <div className="thematic-map-status">{seismicLoading ? (language === "en" ? "Loading USGS seismic data…" : "Завантаження сейсмічних даних USGS…") : seismicMessage || (language === "en" ? "USGS earthquakes · last 90 days · local search area" : "Землетруси USGS · останні 90 днів · локальна область пошуку")}</div>}
+              {mapBaseLayer === "meteorological" && <div className="thematic-map-status">{radarMessage || (language === "en" ? "Precipitation radar · latest available frame · RainViewer" : "Радар опадів · останній доступний кадр · RainViewer")}</div>}
+              {mapBaseLayer === "radiological" && <div className="thematic-map-source"><strong>{language === "en" ? "Radiological monitoring map" : "Карта радіологічного моніторингу"}</strong><span>{language === "en" ? "Open the European Commission EURDEP interactive map. Coverage and reporting depend on national monitoring networks." : "Відкрити інтерактивну карту EURDEP Єврокомісії. Покриття та звітність залежать від національних мереж моніторингу."}</span><a href="https://remap.jrc.ec.europa.eu/Default.aspx" target="_blank" rel="noopener noreferrer">{language === "en" ? "Open EURDEP map ↗" : "Відкрити карту EURDEP ↗"}</a></div>}
+              {mapBaseLayer === "environmental" && <div className="thematic-map-source"><strong>{language === "en" ? "Environmental monitoring · Ternopil Oblast" : "Екологічний моніторинг · Тернопільська область"}</strong><span>{language === "en" ? "Open SaveEcoBot air-quality map with available monitoring stations and source information." : "Відкрити карту якості повітря SaveEcoBot із доступними постами моніторингу та інформацією про джерела даних."}</span><a href="https://www.saveecobot.com/en/maps/ternopilska-oblast" target="_blank" rel="noopener noreferrer">{language === "en" ? "Open environmental map ↗" : "Відкрити екологічну карту ↗"}</a></div>}
               {filtered.length === 0 && filteredRegistryRecords.length === 0 && <div className="empty-map">За вибраними параметрами записів не знайдено.</div>}
               <div className="map-disclaimer">Координати демонстраційних записів умовні.</div>
             </div>
