@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { cloneElement, isValidElement, useEffect, useMemo, useRef, useState } from "react";
 import { CircleMarker, GeoJSON, MapContainer, Polygon, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
 import { buffer as turfBuffer } from "@turf/buffer";
 import { booleanIntersects } from "@turf/boolean-intersects";
@@ -306,7 +306,164 @@ function hasValidGeoJSONCoordinates(value: unknown): boolean {
   return value.every(hasValidGeoJSONCoordinates);
 }
 
+
+const UI_TRANSLATIONS: Record<string, string> = {
+  "ЕПІДЕМІОЛОГІЧНЕ КАРТОГРАФУВАННЯ": "EPIDEMIOLOGICAL MAPPING",
+  "Локальний режим": "Local mode",
+  "Імпорт даних": "Import data",
+  "ТЕРНОПІЛЬСЬКА ОБЛАСТЬ / ЕПІДНАГЛЯД": "TERNOPIL REGION / SURVEILLANCE",
+  "Карта епідеміологічної ситуації": "Epidemiological situation map",
+  "Просторовий аналіз випадків, часові фільтри та огляд територій.": "Spatial case analysis, time filters and geographic overview.",
+  "Експортувати вибірку": "Export selection",
+  "Закрити повідомлення": "Close message",
+  "Імпорт книги EpiGIS або CSV НСЗУ": "Import EpiGIS workbook or NHSU CSV",
+  "Завантажити шаблон / сховище": "Download template / data store",
+  "Випадків у вибірці": "Cases in selection",
+  "За активними фільтрами": "Using active filters",
+  "Підтверджено": "Confirmed",
+  "Немає записів": "No records",
+  "Громад із випадками": "Communities with cases",
+  "У межах поточного відбору": "Within current selection",
+  "Нозологій": "Diagnoses",
+  "Різних діагнозів у вибірці": "Distinct diagnoses in selection",
+  "Фільтри": "Filters",
+  "Скинути": "Reset",
+  "Пошук за записом або НП": "Search records or settlement",
+  "Діагноз, громада, населений пункт…": "Diagnosis, community, settlement…",
+  "Нозології (можна обрати декілька)": "Diagnoses (multiple selection)",
+  "Усі нозології": "All diagnoses",
+  "Очистити вибір": "Clear selection",
+  "Територіальні громади (можна обрати декілька)": "Territorial communities (multiple selection)",
+  "Усі громади": "All communities",
+  "Від дати": "From date",
+  "До дати": "To date",
+  "Лише підтверджені": "Confirmed only",
+  "Фільтри предметних реєстрів": "Thematic registry filters",
+  "Тип реєстру (можна обрати декілька)": "Registry type (multiple selection)",
+  "Реєстри не вибрано": "No registries selected",
+  "За замовчуванням: реєстр випадків": "Default: case registry",
+  "Реєстр випадків": "Case registry",
+  "Пошук об’єкта / атрибута": "Search object / attribute",
+  "Назва, адреса, оператор, вид…": "Name, address, operator, type…",
+  "Територіальна громада": "Territorial community",
+  "Усі типи": "All types",
+  "Знайдено об’єктів реєстрів: ": "Registry objects found: ",
+  "Умовні позначення": "Legend",
+  "Підтверджений випадок": "Confirmed case",
+  "Розслідується": "Under investigation",
+  "Предметні реєстри": "Thematic registries",
+  "Тип реєстру для наступного GeoJSON-імпорту": "Registry for the next GeoJSON import",
+  "Реєстр: ": "Registry: ",
+  "записів · окремий набір даних": "records · separate dataset",
+  "атрибутів · ": "attributes · ",
+  "різні геометрії": "mixed geometries",
+  "Реєстр випадків доступний у таблиці «Реєстр випадків» нижче та через аркуш Cases в Excel-сховищі. Записи випадків не дублюються в предметних реєстрах.": "The case registry is available in the Case Registry table below and in the Cases sheet of the Excel data store. Case records are not duplicated in thematic registries.",
+  "Додати запис": "Add record",
+  "Редагування запису": "Edit record",
+  "Новий запис": "New record",
+  "Вибрати…": "Select…",
+  "Широта": "Latitude",
+  "Довгота": "Longitude",
+  "Зберегти": "Save",
+  "Скасувати": "Cancel",
+  "Редагувати запис": "Edit record",
+  "Видалити запис": "Delete record",
+  "Записи зберігаються локально в цьому браузері. Координати використовуються для відображення точок на карті. Для ліній і полігонів імпортуй GeoJSON.": "Records are stored locally in this browser. Coordinates are used to display map points. Import GeoJSON for lines and polygons.",
+  "Географічний огляд": "Geographic overview",
+  "точкових записів на карті": "point records on map",
+  "За вибраними параметрами записів не знайдено.": "No records found for the selected criteria.",
+  "Координати демонстраційних записів умовні.": "Demo record coordinates are illustrative.",
+  "Лікарні": "Hospitals",
+  "Первинна допомога": "Primary care",
+  "Стоматології": "Dental clinics",
+  "Екстрена допомога": "Emergency care",
+  "Лабораторії": "Laboratories",
+  "Приватні центри": "Private clinics",
+  "Результати просторового аналізу": "Spatial analysis results",
+  "Закрити таблицю": "Close table",
+  "Тип геометрії": "Geometry type",
+  "Кількість перетинів": "Intersection count",
+  "Атрибути": "Attributes",
+  "Немає атрибутів": "No attributes",
+  "Таблиця відображає геометричні перетини, а не підтверджений епідеміологічний зв’язок. Для повного набору атрибутів експортуй GeoJSON відповідного шару.": "This table shows geometric intersections, not a confirmed epidemiological relationship. Export the relevant GeoJSON layer for the full attribute set.",
+  "Натисни на рядок, щоб переглянути деталі": "Select a row to view details",
+  "Реєстр": "Registry",
+  "Об’єкт": "Object",
+  "Громада / НП": "Community / settlement",
+  "Тип / характеристика": "Type / characteristic",
+  "Дата": "Date",
+  "Нозологія": "Diagnosis",
+  "Статус": "Status",
+  "Показано 100 із ": "Showing 100 of ",
+  "записів. Експорт містить усю вибірку.": "records. Export includes the full selection.",
+  "Немає записів для відображення.": "No records to display.",
+  "Об’єкти предметних реєстрів": "Thematic registry objects",
+  "За активними фільтрами реєстрів": "Using active registry filters",
+  "об’єктів. Повні дані містяться в Excel-сховищі.": "objects. Full data is available in the Excel data store.",
+  "Об’єктів для відображення немає.": "No objects to display.",
+  "Керування картою": "Map controls",
+  "Географічні шари": "Geographic layers",
+  "Додати GeoJSON": "Add GeoJSON",
+  "Поки немає власних шарів. Додай GeoJSON із точками, лініями або полігонами.": "No custom layers yet. Add GeoJSON containing points, lines or polygons.",
+  "Показати шар на карті": "Show layer on map",
+  "Перейменувати шар": "Rename layer",
+  "Експортувати GeoJSON": "Export GeoJSON",
+  "Видалити шар": "Delete layer",
+  "Креслення на карті": "Map drawing",
+  "Точка": "Point",
+  "Лінія": "Line",
+  "Полігон": "Polygon",
+  "Клацни на карті, щоб поставити точку.": "Click the map to place a point.",
+  "Познач вершини на карті. Додано: ": "Mark vertices on the map. Added: ",
+  "Завершити": "Finish",
+  "Буферний аналіз": "Buffer analysis",
+  "Вихідний шар": "Source layer",
+  "Вибрати шар…": "Select layer…",
+  "Радіус буфера, метрів": "Buffer radius, metres",
+  "Побудувати буфер": "Create buffer",
+  "Просторові перетини": "Spatial intersections",
+  "Зона аналізу (наприклад, буфер)": "Analysis zone (e.g. buffer)",
+  "Вибрати шар зоною…": "Select zone layer…",
+  "Шар об'єктів для перевірки": "Layer of objects to check",
+  "Вибрати шар об'єктів…": "Select object layer…",
+  "Знайти об'єкти в зоні": "Find objects in zone",
+  "Перевіряється геометричний перетин об'єктів двох шарів. Результат додається окремим шаром; це не є автоматичним епідеміологічним висновком.": "Geometric intersections between two layers are checked. The result is added as a separate layer; this is not an automatic epidemiological conclusion.",
+  "Шари зберігаються локально у браузері. Вони не передаються на сервер і можуть бути недоступні на іншому пристрої.": "Layers are stored locally in this browser. They are not sent to a server and may not be available on another device.",
+  "Картка випадку": "Case details",
+  "Дата реєстрації": "Registration date",
+  "Територія": "Territory",
+  "Населений пункт": "Settlement",
+  "Вік": "Age",
+  "Стать": "Sex",
+  "Не вказано": "Not specified",
+  "років": "years",
+  "Примітки": "Notes",
+  "Випадок не вибрано": "No case selected",
+  "Обери точку на карті або запис у реєстрі, щоб побачити деталі.": "Select a point on the map or a registry record to view details.",
+  "Важливо": "Important",
+  "Просторове скупчення точок саме по собі не підтверджує спалах. Потрібна епідеміологічна оцінка.": "A spatial cluster of points alone does not confirm an outbreak. Epidemiological assessment is required.",
+  "Демонстраційні дані · Не для клінічних рішень": "Demonstration data · Not for clinical decisions",
+  "Розробник:": "Developer:"
+};
+function localizeNode(node: React.ReactNode, language: "uk" | "en"): React.ReactNode {
+  if (language === "uk") return node;
+  if (typeof node === "string") return UI_TRANSLATIONS[node] ?? node;
+  if (typeof node === "number" || node === null || node === undefined || typeof node === "boolean") return node;
+  if (Array.isArray(node)) return node.map((child) => localizeNode(child, language));
+  if (isValidElement(node)) {
+    const props: Record<string, unknown> = { ...node.props };
+    for (const key of ["placeholder", "title", "aria-label"]) {
+      if (typeof props[key] === "string") props[key] = UI_TRANSLATIONS[props[key] as string] ?? props[key];
+    }
+    if (props.children !== undefined) props.children = localizeNode(props.children as React.ReactNode, language);
+    return cloneElement(node, props);
+  }
+  return node;
+}
+
 export default function App() {
+  const [language, setLanguage] = useState<"uk" | "en">(() => localStorage.getItem("ternopil-epigis-language") === "en" ? "en" : "uk");
+  useEffect(() => { localStorage.setItem("ternopil-epigis-language", language); }, [language]);
   const [cases, setCases] = useState<CaseRecord[]>(() => { try { const saved = localStorage.getItem("ternopil-epigis-cases-v1"); return saved ? JSON.parse(saved) as CaseRecord[] : DEMO_CASES; } catch { return DEMO_CASES; } });
   const [gisLayers, setGisLayers] = useState<GISLayer[]>(() => {
     try { const saved = localStorage.getItem("ternopil-epigis-layers-v1"); return saved ? JSON.parse(saved) as GISLayer[] : []; } catch { return []; }
@@ -964,7 +1121,7 @@ export default function App() {
           <div className="brand-mark"><Activity size={22} strokeWidth={2.5} /></div>
           <div><div className="brand-name">Ternopil <span>EpiGIS</span></div><div className="brand-caption">ЕПІДЕМІОЛОГІЧНЕ КАРТОГРАФУВАННЯ</div></div>
         </div>
-        <div className="top-actions"><span className="environment"><span className="pulse-dot" /> Локальний режим</span><button className="button button-light" onClick={() => setShowUpload(!showUpload)}><Upload size={16} /> Імпорт даних</button></div>
+        <div className="top-actions"><button className="button button-light language-switch" onClick={() => setLanguage((current) => current === "uk" ? "en" : "uk")} aria-label="Change language">{language === "uk" ? "EN" : "УКР"}</button><span className="environment"><span className="pulse-dot" /> Локальний режим</span><button className="button button-light" onClick={() => setShowUpload(!showUpload)}><Upload size={16} /> Імпорт даних</button></div>
       </header>
 
       <main className="main-content">
