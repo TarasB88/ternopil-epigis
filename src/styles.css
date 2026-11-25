@@ -59,3 +59,30 @@
 .registry-record>div{display:flex;flex-direction:column;gap:3px;min-width:0}
 .registry-record strong{font-size:9px;color:#355346;overflow-wrap:anywhere}
 .registry-record span{font-size:8px;color:#83948b;overflow-wrap:anywhere}
+
+
+/* Healthcare facility cartography: distinct symbols, zoom-aware sizing and decluttering */
+.facility-marker-host,.facility-cluster-host{background:transparent;border:0}
+.facility-marker{display:grid;place-items:center;width:var(--marker-size);height:var(--marker-size);box-sizing:border-box;border:2px solid #fff;color:#fff;font-size:calc(var(--marker-size) * .56);font-weight:900;line-height:1;box-shadow:0 1px 5px #102a224d;text-shadow:0 1px 1px #0003}
+.facility-marker>span{display:grid;place-items:center;width:100%;height:100%}
+.facility-marker--hospital{background:#b42318;border-radius:7px}
+.facility-marker--primary{background:#087f5b;border-radius:50%}
+.facility-marker--dental{background:#2563eb;border-radius:5px;transform:rotate(45deg) scale(.82)}
+.facility-marker--dental>span{transform:rotate(-45deg)}
+.facility-marker--emergency{background:#c2410c;border-radius:3px;clip-path:polygon(25% 0,75% 0,100% 25%,100% 75%,75% 100%,25% 100%,0 75%,0 25%)}
+.facility-marker--laboratory{background:#7c3aed;border-radius:4px 4px 9px 9px;clip-path:polygon(25% 0,75% 0,75% 28%,100% 88%,90% 100%,10% 100%,0 88%,25% 28%)}
+.facility-marker--clinic{background:#0f766e;border-radius:50% 50% 50% 5px;transform:rotate(-45deg)}
+.facility-marker--clinic>span{transform:rotate(45deg)}
+.facility-marker--other{background:#64748b;border-radius:50%}
+.facility-cluster{display:grid;place-items:center;width:var(--cluster-size);height:var(--cluster-size);box-sizing:border-box;border:3px solid #fff;border-radius:50%;background:#244f73;color:#fff;font-size:12px;font-weight:800;box-shadow:0 2px 8px #102a2255;outline:1px solid #244f7344}
+.facility-cluster>span{font-variant-numeric:tabular-nums}
+.facility-map-legend{display:flex;flex-wrap:wrap;gap:8px 14px;padding:9px 13px;border-top:1px solid #e8eeea;background:#fbfdfb}
+.facility-map-legend span{display:inline-flex;align-items:center;gap:5px;color:#60756a;font-size:9px}
+.facility-map-legend i{display:inline-grid;place-items:center;width:12px;height:12px;border:1px solid #fff;border-radius:4px;color:#fff;font-size:8px;font-style:normal;font-weight:900}
+.facility-map-legend .legend-hospital{background:#b42318}
+.facility-map-legend .legend-primary{background:#087f5b;border-radius:50%}
+.facility-map-legend .legend-dental{background:#2563eb;transform:rotate(45deg);border-radius:2px}
+.facility-map-legend .legend-emergency{background:#c2410c;clip-path:polygon(25% 0,75% 0,100% 25%,100% 75%,75% 100%,25% 100%,0 75%,0 25%)}
+.facility-map-legend .legend-laboratory{background:#7c3aed}
+.facility-map-legend .legend-clinic{background:#0f766e;border-radius:50% 50% 50% 3px}
+@media(max-width:760px){.facility-map-legend{gap:7px 10px;padding:8px}.facility-map-legend span{font-size:8px}}
