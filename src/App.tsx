@@ -236,6 +236,7 @@ export default function App() {
       const caseRows = hasCasesSheet ? (readRows("Cases") ?? []) : isLegacySingleSheet ? (readRows(workbook.SheetNames[0]) ?? []) : null;
       let caseCount = 0;
       let invalidCases = 0;
+      let casesUpdated = false;
       let caseImportWarning = "";
       if (caseRows !== null) {
         const actualCaseRows = caseRows.filter((row) => {
@@ -244,11 +245,12 @@ export default function App() {
           return !(id === "CASE-0001" && (notes.includes("приклад") || notes.includes("зразок")));
         });
         const parsedCases = actualCaseRows.map(toCase).filter((item): item is CaseRecord => item !== null);
-        if (caseRows.length === 0 || parsedCases.length > 0) {
+        if (parsedCases.length > 0) {
           setCases(parsedCases);
+          casesUpdated = true;
           caseCount = parsedCases.length;
           invalidCases = actualCaseRows.length - parsedCases.length;
-        } else {
+        } else if (caseRows.length > 0) {
           caseImportWarning = " Аркуш випадків не пройшов перевірку; попередні випадки збережено.";
         }
       }
@@ -259,7 +261,7 @@ export default function App() {
       REGISTRIES.forEach((registry) => {
         const sheetName = REGISTRY_SHEET_NAMES[registry.id];
         const rows = readRows(sheetName);
-        if (rows === null) return;
+        if (rows === null || rows.length === 0) return;
         const stagedRecords: RegistryRecord[] = [];
         let sheetInvalidRows = 0;
         rows.forEach((row, index) => {
@@ -354,9 +356,9 @@ export default function App() {
       setDisease("Усі нозології");
       setHromada("Усі громади");
       setSelected(null);
-      const caseSummary = caseRows === null ? " Випадки не змінювалися." : " Випадки: " + caseCount + " (відхилено: " + invalidCases + ").";
+      const caseSummary = casesUpdated ? " Випадки: " + caseCount + " (відхилено: " + invalidCases + ")." : " Випадки не змінювалися.";
       const registrySummary = replacedRegistryIds.length ? " Предметні реєстри: " + importedRegistryRecords.length + " записів у " + replacedRegistryIds.length + " аркушах." : " Предметні реєстри не змінювалися.";
-      const layerSummary = geoRows === null
+      const layerSummary = geoRows === null || geoRows.length === 0
         ? " Геошари не змінювалися."
         : invalidLayers > 0
           ? " Геошари не оновлено через помилки GeoJSON; попередні шари збережено."
@@ -614,7 +616,7 @@ export default function App() {
       ["Cases", "Випадки інфекційної захворюваності", "Чинна структура колонок не змінена. Обов’язкові поля: disease, date, hromada, latitude, longitude."],
       ...REGISTRIES.map((registry) => [REGISTRY_SHEET_NAMES[registry.id], registry.label, "Один рядок — один об’єкт. Обов’язкові поля визначені у відповідному реєстрі; координати latitude/longitude обов’язкові."]),
       ["GeoLayers", "GeoJSON-шари, водогони, трубопроводи, межі, буфери, ручні об'єкти та результати просторового аналізу", "Службовий аркуш. GeoJSON зберігається фрагментами у колонці geojson_chunk; не змінюй цей аркуш вручну."],
-      ["Оновлення", "Книга є робочим файловим сховищем", "Завантаж книгу, додай або відредагуй записи, потім імпортуй її в EpiGIS. Імпортуються лише ті набори даних, аркуші яких присутні у книзі."],
+      ["Оновлення", "Книга є робочим файловим сховищем", "Завантаж книгу, додай або відредагуй записи, потім імпортуй її в EpiGIS. Імпортуються лише ті набори даних, аркуші яких містять заповнені рядки; порожні аркуші не очищують сховище."],
       ["Збереження", "Локальне сховище браузера", "Після імпорту записи зберігаються в цьому браузері. Завантажуй актуальну книгу як резервну копію; файл можна використовувати для перенесення даних на інший пристрій."],
       ["Конфіденційність", "Обмеження використання", "Не завантажуй персональні чи медично ідентифіковані дані. Населення внось лише агреговано. Серверної синхронізації між користувачами у цій версії немає."]
     ];
@@ -657,7 +659,7 @@ export default function App() {
         {message && <div className="notice"><AlertTriangle size={16} /><span>{message}</span><button aria-label="Закрити повідомлення" onClick={() => setMessage("")}><X size={15} /></button></div>}
 
         {showUpload && <section className="upload-panel">
-          <div className="upload-copy"><FileSpreadsheet size={22} /><div><strong>Імпорт повної книги EpiGIS</strong><p>Excel-книга з випадками, 8 предметними реєстрами та геошарами. Аркуші, що є у файлі, оновлять відповідні набори; відсутні аркуші не змінюються.</p></div></div>
+          <div className="upload-copy"><FileSpreadsheet size={22} /><div><strong>Імпорт повної книги EpiGIS</strong><p>Excel-книга з випадками, 8 предметними реєстрами та геошарами. Аркуші із заповненими рядками оновлять відповідні набори; порожні або відсутні аркуші не змінюються.</p></div></div>
           <div className="upload-actions"><input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" onChange={(event) => importFile(event.target.files?.[0])} /><button className="button button-light" onClick={downloadTemplate}><Download size={15} /> Завантажити шаблон / сховище</button></div>
         </section>}
 
