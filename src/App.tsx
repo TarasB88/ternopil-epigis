@@ -823,7 +823,7 @@ export default function App() {
         setSeismicGeoJson(data);
         if (!Array.isArray(data?.features) || data.features.length === 0) setSeismicMessage(language === "en" ? "No events in the selected area and period." : "За вибраний період у межах області подій не виявлено.");
       })
-      .catch((error) => { if (error.name !== "AbortError") setSeismicMessage(language === "en" ? "USGS seismic data are temporarily unavailable." : "Дані USGS тимчасово недоступні."); })
+      .catch((error) => { if ((error as Error).name !== "AbortError") setSeismicMessage(language === "en" ? "USGS seismic data are temporarily unavailable." : "Дані USGS тимчасово недоступні."); })
       .finally(() => { if (!controller.signal.aborted) setSeismicLoading(false); });
     return () => controller.abort();
   }, [mapBaseLayer, language]);
@@ -841,7 +841,7 @@ export default function App() {
         if (!data?.host || !latest?.path) throw new Error("No radar frame");
         setRadarTileUrl(`${data.host}${latest.path}/256/{z}/{x}/{y}/2/1_1.png`);
       })
-      .catch((error) => { if (error.name !== "AbortError") setRadarMessage(language === "en" ? "Weather radar is temporarily unavailable." : "Метеорологічний радар тимчасово недоступний."); });
+      .catch((error) => { if ((error as Error).name !== "AbortError") setRadarMessage(language === "en" ? "Weather radar is temporarily unavailable." : "Метеорологічний радар тимчасово недоступний."); });
     return () => controller.abort();
   }, [mapBaseLayer, language]);
 
