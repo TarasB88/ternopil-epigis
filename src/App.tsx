@@ -90,10 +90,10 @@ function DrawController({ mode, onMapClick }: { mode: DrawMode; onMapClick: (lat
 type FacilitySymbol = { kind: string; glyph: string; label: string };
 function facilitySymbol(type: unknown): FacilitySymbol {
   const value = String(type ?? "").toLocaleLowerCase("uk-UA");
-  if (/екстрен|швидк|медиц.*катастроф|103/.test(value)) return { kind: "emergency", glyph: "✚", label: "Екстрена допомога" };
+  if (/екстрен|швидк|медиц.*катастроф|103|\bемд\b|пункт базування/.test(value)) return { kind: "emergency", glyph: "✚", label: "Екстрена допомога" };
   if (/стомат|зубн/.test(value)) return { kind: "dental", glyph: "✦", label: "Стоматологія" };
   if (/лаборатор|діагност/.test(value)) return { kind: "laboratory", glyph: "⚗", label: "Лабораторія" };
-  if (/амбулатор|цпмсд|первин|сімейн|фельдшер/.test(value)) return { kind: "primary", glyph: "⌂", label: "Первинна допомога" };
+  if (/амбулатор|цпмсд|первин|сімейн|фельдшер|фап|\bфп\b/.test(value)) return { kind: "primary", glyph: "⌂", label: "Первинна допомога" };
   if (/лікарн|госпітал|стаціонар/.test(value)) return { kind: "hospital", glyph: "✚", label: "Лікарня" };
   if (/приват|медичн.*центр|клінік/.test(value)) return { kind: "clinic", glyph: "●", label: "Медичний центр / клініка" };
   return { kind: "other", glyph: "•", label: "Інший медичний заклад" };
