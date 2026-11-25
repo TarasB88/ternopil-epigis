@@ -550,8 +550,61 @@ const UI_TRANSLATIONS: Record<string, string> = {
   "статус": "status",
   "вік": "age",
   "стать": "sex",
-  "примітки": "notes"
-};
+  "примітки": "notes",
+  "Ідентифікатор": "Identifier",
+  "Назва об'єкта": "Object name",
+  "Адреса": "Address",
+  "Джерело даних": "Data source",
+  "Дата актуалізації": "Last updated",
+  "Тип закладу": "Facility type",
+  "Обласна лікарня": "Regional hospital",
+  "Міська / районна лікарня": "City / district hospital",
+  "Багатопрофільна лікарня": "Multidisciplinary hospital",
+  "Спеціалізована лікарня": "Specialized hospital",
+  "Дитяча лікарня": "Children's hospital",
+  "Пологовий будинок": "Maternity hospital",
+  "Амбулаторія загальної практики": "General practice clinic",
+  "ФАП / ФП": "Rural health post",
+  "Приватний медичний центр": "Private medical centre",
+  "Діагностичний центр": "Diagnostic centre",
+  "Реабілітаційний центр": "Rehabilitation centre",
+  "Центр екстреної медичної допомоги": "Emergency medical care centre",
+  "Пункт базування ЕМД": "Emergency medical services station",
+  "Форма власності": "Ownership",
+  "ID юридичної особи НСЗУ": "NHSU legal entity ID",
+  "ID місця надання послуг": "Service delivery location ID",
+  "Тип підрозділу НСЗУ": "NHSU facility type",
+  "Електронна пошта": "Email",
+  "Дата оновлення джерела": "Source update date",
+  "Статус ліцензії МОЗ": "MOH licence status",
+  "Водозабір": "Water intake",
+  "Водогін": "Water pipeline",
+  "Каналізація": "Sewerage",
+  "Очисні споруди": "Wastewater treatment plant",
+  "Балансоутримувач / оператор": "Asset owner / operator",
+  "Вид діяльності": "Activity type",
+  "Категорія ризику": "Risk category",
+  "Тип природного об'єкта": "Natural feature type",
+  "Дата виявлення": "Date detected",
+  "Активне": "Active",
+  "Під наглядом": "Under surveillance",
+  "Закрите": "Closed",
+  "Дата відбору": "Sampling date",
+  "Вид / таксон": "Species / taxon",
+  "Стадія розвитку": "Life stage",
+  "Результат дослідження": "Test result",
+  "Населення": "Population",
+  "Тип об'єкта": "Object type",
+  "Інше": "Other",
+  "Експорт": "Export",
+  "Імпорт": "Import",
+  "Видалити": "Delete",
+  "Перейменувати": "Rename",
+  "Завантажити": "Download",
+  "Переглянути": "View",
+  "Додати": "Add",
+  "Так": "Yes",
+  "Ні": "No"
 function localizeNode(node: React.ReactNode, language: "uk" | "en"): React.ReactNode {
   if (language === "uk") return node;
   if (typeof node === "string") return UI_TRANSLATIONS[node] ?? node;
@@ -559,7 +612,7 @@ function localizeNode(node: React.ReactNode, language: "uk" | "en"): React.React
   if (Array.isArray(node)) return node.map((child) => localizeNode(child, language));
   if (isValidElement(node)) {
     const props: Record<string, unknown> = { ...node.props };
-    for (const key of ["placeholder", "title", "aria-label"]) {
+    for (const key of ["placeholder", "title", "aria-label", "label", "description"]) {
       if (typeof props[key] === "string") props[key] = UI_TRANSLATIONS[props[key] as string] ?? props[key];
     }
     if (props.children !== undefined) props.children = localizeNode(props.children as React.ReactNode, language);
