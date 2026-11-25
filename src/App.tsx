@@ -617,7 +617,6 @@ const UI_TRANSLATIONS: Record<string, string> = {
   ["Об'єкт без назви"]: "Unnamed object",
   ["Об’єкт реєстру"]: "Registry object",
   ["Об'єкт шару"]: "Layer object",
-  ["Заповни всі обов'язкові поля реєстру."]: "Complete all required registry fields.",
   ["Вибери шар для буферизації."]: "Select a layer to buffer.",
   ["Координати"]: "Coordinates",
   ["Демонстраційні дані"]: "Demonstration data",
