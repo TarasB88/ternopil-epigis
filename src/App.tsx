@@ -1403,10 +1403,10 @@ export default function App() {
         </section>}
 
         <section className="metric-grid">
-          <Metric icon={<Users size={18} />} label="Випадків у вибірці" value={filtered.length.toLocaleString("uk-UA")} note="За активними фільтрами" />
+          <Metric icon={<Users size={18} />} label="Випадків у вибірці" value={filtered.length.toLocaleString("uk-UA")} note={language === "en" ? "Using active filters" : "За активними фільтрами"} />
           <Metric icon={<ShieldCheck size={18} />} label="Підтверджено" value={confirmed.toLocaleString("uk-UA")} note={filtered.length ? (language === "en" ? `${Math.round(confirmed / filtered.length * 100)}% of selection` : `${Math.round(confirmed / filtered.length * 100)}% від вибірки`) : "Немає записів"} />
-          <Metric icon={<MapPin size={18} />} label="Громад із випадками" value={locations.toLocaleString("uk-UA")} note="У межах поточного відбору" />
-          <Metric icon={<Activity size={18} />} label="Нозологій" value={activeDiseases.toLocaleString("uk-UA")} note="Різних діагнозів у вибірці" />
+          <Metric icon={<MapPin size={18} />} label="Громад із випадками" value={locations.toLocaleString("uk-UA")} note={language === "en" ? "Within current selection" : "У межах поточного відбору"} />
+          <Metric icon={<Activity size={18} />} label="Нозологій" value={activeDiseases.toLocaleString("uk-UA")} note={language === "en" ? "Distinct diagnoses in selection" : "Різних діагнозів у вибірці"} />
         </section>
 
         <section className="workspace">
