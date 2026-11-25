@@ -598,7 +598,6 @@ const UI_TRANSLATIONS: Record<string, string> = {
   "ID": "ID",
   " записів. Експорт містить усю вибірку.": " records. Export includes the full selection.",
   " об’єктів. Повні дані містяться в Excel-сховищі.": " objects. Full data is available in the Excel data store.",
-  " об'єктів": " objects",
   "Мова": "Language",
   "Обрано: ": "Selected: ",
   " район": " district",
