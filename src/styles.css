@@ -196,3 +196,27 @@ body:has(.map-section--fullscreen){overflow:hidden}
 
 /* Keep the full-screen workspace focused on the map; the case register remains available in normal view. */
 .map-section--fullscreen .case-register-panel{display:none!important}
+
+/* Native Fullscreen API: occupy the physical screen, not just the browser viewport. */
+.map-section--fullscreen:fullscreen{
+  position:fixed!important;
+  inset:0!important;
+  width:100vw!important;
+  height:100vh!important;
+  max-width:none!important;
+  max-height:none!important;
+  min-height:0!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  background:#fff!important;
+  overflow:hidden!important;
+}
+.map-section--fullscreen:fullscreen .map-wrap{
+  flex:1 1 auto!important;
+  height:auto!important;
+  min-height:0!important;
+  width:100%!important;
+}
