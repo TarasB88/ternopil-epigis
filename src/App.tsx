@@ -1,5 +1,5 @@
 import { cloneElement, isValidElement, useEffect, useMemo, useRef, useState } from "react";
-import { CircleMarker, GeoJSON, MapContainer, Polygon, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
+import { CircleMarker, GeoJSON, MapContainer, Marker, Polygon, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
 import { buffer as turfBuffer } from "@turf/buffer";
 import { booleanIntersects } from "@turf/boolean-intersects";
 import L from "leaflet";
@@ -24,6 +24,8 @@ type CaseRecord = {
   age?: number;
   sex?: string;
   notes?: string;
+  markerColor?: string;
+  markerIcon?: string;
 };
 
 const DEMO_CASES: CaseRecord[] = [
@@ -40,7 +42,23 @@ const DEMO_CASES: CaseRecord[] = [
 ];
 
 const DISEASES = ["Усі нозології", ...Array.from(new Set(DEMO_CASES.map((item) => item.disease)))];
-const TEMPLATE_HEADERS = ["id", "disease", "date", "hromada", "settlement", "latitude", "longitude", "status", "age", "sex", "notes"];
+const CASE_MARKER_COLORS: Record<string, string> = {
+  default: "#ef4444", red: "#dc2626", orange: "#f59e0b", blue: "#2563eb",
+  green: "#16a34a", purple: "#9333ea", dark: "#334155"
+};
+const CASE_MARKER_GLYPHS: Record<string, string> = {
+  dot: "", star: "★", warning: "!", cross: "✚", diamond: "◆", flag: "⚑"
+};
+function caseMarkerIcon(item: CaseRecord, selected: boolean): L.DivIcon {
+  const color = CASE_MARKER_COLORS[item.markerColor ?? "default"] ?? CASE_MARKER_COLORS.default;
+  const glyph = CASE_MARKER_GLYPHS[item.markerIcon ?? "dot"] ?? "";
+  const size = glyph ? (selected ? 16 : 14) : (selected ? 7 : 5);
+  const border = glyph ? "1px solid #ffffff" : "0";
+  const shadow = glyph ? "0 1px 3px #0005" : "0 0 0 1px #ffffff";
+  const html = '<span style="display:flex;align-items:center;justify-content:center;width:' + size + 'px;height:' + size + 'px;box-sizing:border-box;border-radius:50%;background:' + color + ';border:' + border + ';box-shadow:' + shadow + ';color:#ffffff;font-size:10px;font-weight:800;line-height:1">' + glyph + '</span>';
+  return L.divIcon({ className: "case-marker-host", html, iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
+}
+const TEMPLATE_HEADERS = ["id", "disease", "date", "hromada", "settlement", "latitude", "longitude", "status", "age", "sex", "notes", "markerColor", "markerIcon"];
 const REGISTRY_SHEET_NAMES: Record<string, string> = { healthcare: "Healthcare", water: "Water", food: "Food", natural: "Natural", outbreaks: "Outbreaks", "bio-monitoring": "BioMonitoring", meteorology: "Meteorology", population: "Population" };
 const GEO_LAYERS_SHEET = "GeoLayers";
 const CASE_REGISTRY = { id: "cases", label: "Реєстр випадків", description: "Випадки інфекційних захворювань. Дані ведуться в окремому реєстрі випадків і на аркуші Cases; не змішуються з предметними реєстрами.", geometry: "Point" as const, fields: [] };
@@ -296,7 +314,9 @@ function toCase(row: Record<string, unknown>, index: number): CaseRecord | null 
     status: String(get("status", "статус") ?? "Не визначено"),
     age: Number.isFinite(parsedAge) ? parsedAge : undefined,
     sex: String(get("sex", "стать") ?? ""),
-    notes: String(get("notes", "примітки", "коментар") ?? "")
+    notes: String(get("notes", "примітки", "коментар") ?? ""),
+    markerColor: String(get("markerColor", "колір позначки") ?? "") || undefined,
+    markerIcon: String(get("markerIcon", "іконка позначки") ?? "") || undefined
   };
 }
 function hasValidGeoJSONCoordinates(value: unknown): boolean {
@@ -322,6 +342,21 @@ const UI_TRANSLATIONS: Record<string, string> = {
   "Імпорт книги EpiGIS або CSV НСЗУ": "Import EpiGIS workbook or NHSU CSV",
   "Завантажити шаблон / сховище": "Download template / data store",
   "Випадків у вибірці": "Cases in selection",
+  "Позначка вибраного випадку": "Map symbol for selected case",
+  "Стандартний червоний": "Default red",
+  "Темно-червоний": "Dark red",
+  "Помаранчевий": "Orange",
+  "Синій": "Blue",
+  "Зелений": "Green",
+  "Фіолетовий": "Purple",
+  "Темно-сірий": "Dark grey",
+  "Мала точка": "Small dot",
+  "Зірка ★": "Star ★",
+  "Попередження !": "Alert !",
+  "Хрест ✚": "Cross ✚",
+  "Ромб ◆": "Diamond ◆",
+  "Прапорець ⚑": "Flag ⚑",
+  "Скинути позначку": "Reset symbol",
   "За активними фільтрами": "Using active filters",
   "Підтверджено": "Confirmed",
   "Немає записів": "No records",
@@ -1378,6 +1413,20 @@ export default function App() {
     }
   };
 
+  const updateSelectedCaseMarker = (field: "markerColor" | "markerIcon", value: string) => {
+    if (!selected) return;
+    const updated: CaseRecord = { ...selected, [field]: value || undefined };
+    setCases((current) => current.map((item) => item.id === selected.id ? updated : item));
+    setSelected(updated);
+  };
+
+  const resetSelectedCaseMarker = () => {
+    if (!selected) return;
+    const updated: CaseRecord = { ...selected, markerColor: undefined, markerIcon: undefined };
+    setCases((current) => current.map((item) => item.id === selected.id ? updated : item));
+    setSelected(updated);
+  };
+
   const exportCsv = () => {
     const header = TEMPLATE_HEADERS.join(",");
     const rows = filtered.map((item) => TEMPLATE_HEADERS.map((key) => {
@@ -1621,7 +1670,7 @@ export default function App() {
                 <FitToLayer layer={gisLayers.find((layer) => layer.id === fitLayerId) ?? null} />
                 <FacilityMarkerLayer records={filteredRegistryRecords.filter((record) => record.registryId === "healthcare")} language={language} />
                 {filteredRegistryRecords.filter((record) => record.registryId !== "healthcare").map((record) => <CircleMarker key={record.id} center={[record.latitude, record.longitude]} radius={6} pathOptions={{ color: "#315f9a", fillColor: "#4d83bd", fillOpacity: 0.85, weight: 1.5 }}><Popup><strong>{record.values.name == null || String(record.values.name).trim() === "" ? translateUI("Об’єкт реєстру", language) : String(record.values.name)}</strong><br />{translateUI(REGISTRIES.find((registry) => registry.id === record.registryId)?.label ?? record.registryId, language)}<br />{String(record.values.hromada ?? "")}</Popup></CircleMarker>)}
-                {filtered.filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude)).map((item) => <CircleMarker key={item.id} center={[item.latitude as number, item.longitude as number]} radius={selected?.id === item.id ? 3.3 : 2.3} pathOptions={{ color: "#991b1b", fillColor: "#ef4444", fillOpacity: 0.9, weight: selected?.id === item.id ? 1.2 : 0.7 }} eventHandlers={{ click: () => setSelected(item) }}><Popup><strong>{item.disease}</strong><br />{item.settlement || item.hromada}<br />{item.date}<br />{translateCaseStatus(item.status, language)}</Popup></CircleMarker>)}
+                {filtered.filter((item) => Number.isFinite(item.latitude) && Number.isFinite(item.longitude)).map((item) => <Marker key={item.id} position={[item.latitude as number, item.longitude as number]} icon={caseMarkerIcon(item, selected?.id === item.id)} eventHandlers={{ click: () => setSelected(item) }}><Popup><strong>{item.disease}</strong><br />{item.settlement || item.hromada}<br />{item.date}<br />{translateCaseStatus(item.status, language)}</Popup></Marker>)}
               </MapContainer>
               {filtered.length === 0 && filteredRegistryRecords.length === 0 && <div className="empty-map">За вибраними параметрами записів не знайдено.</div>}
               <div className="map-disclaimer">Координати демонстраційних записів умовні.</div>
@@ -1646,6 +1695,37 @@ export default function App() {
             })()}
 
             <div className="table-heading"><div><h2>Реєстр випадків</h2><p>Натисни на рядок, щоб переглянути деталі</p></div><span>{language === "en" ? `${filtered.length} records` : `${filtered.length} записів`}</span></div>
+            {selected && <div className="case-marker-editor">
+              <div className="case-marker-editor-heading">
+                <strong>{language === "en" ? "Map symbol for selected case" : "Позначка вибраного випадку"}</strong>
+                <span>{selected.id}</span>
+              </div>
+              <div className="case-marker-editor-controls">
+                <label>{language === "en" ? "Color" : "Колір"}
+                  <select value={selected.markerColor ?? "default"} onChange={(event) => updateSelectedCaseMarker("markerColor", event.target.value)}>
+                    <option value="default">{language === "en" ? "Default red" : "Стандартний червоний"}</option>
+                    <option value="red">{language === "en" ? "Dark red" : "Темно-червоний"}</option>
+                    <option value="orange">{language === "en" ? "Orange" : "Помаранчевий"}</option>
+                    <option value="blue">{language === "en" ? "Blue" : "Синій"}</option>
+                    <option value="green">{language === "en" ? "Green" : "Зелений"}</option>
+                    <option value="purple">{language === "en" ? "Purple" : "Фіолетовий"}</option>
+                    <option value="dark">{language === "en" ? "Dark grey" : "Темно-сірий"}</option>
+                  </select>
+                </label>
+                <label>{language === "en" ? "Symbol" : "Символ"}
+                  <select value={selected.markerIcon ?? "dot"} onChange={(event) => updateSelectedCaseMarker("markerIcon", event.target.value)}>
+                    <option value="dot">{language === "en" ? "Small dot" : "Мала точка"}</option>
+                    <option value="star">{language === "en" ? "Star ★" : "Зірка ★"}</option>
+                    <option value="warning">{language === "en" ? "Alert !" : "Попередження !"}</option>
+                    <option value="cross">{language === "en" ? "Cross ✚" : "Хрест ✚"}</option>
+                    <option value="diamond">{language === "en" ? "Diamond ◆" : "Ромб ◆"}</option>
+                    <option value="flag">{language === "en" ? "Flag ⚑" : "Прапорець ⚑"}</option>
+                  </select>
+                </label>
+                <button type="button" className="text-button" onClick={resetSelectedCaseMarker}>{language === "en" ? "Reset" : "Скинути позначку"}</button>
+              </div>
+              <p>{language === "en" ? "Changes are saved automatically in this browser and included in CSV/Excel exports." : "Зміни автоматично зберігаються в цьому браузері та потрапляють до CSV/Excel-експорту."}</p>
+            </div>
             <div className="table-scroll"><table><thead><tr><th>ID</th><th>Нозологія</th><th>Дата</th><th>Громада / НП</th><th>Статус</th></tr></thead><tbody>
               {filtered.slice(0, 100).map((item) => <tr key={item.id} className={selected?.id === item.id ? "selected-row" : ""} onClick={() => setSelected(item)}><td className="case-id">{item.id}</td><td>{item.disease}</td><td>{item.date}</td><td>{item.hromada}{item.settlement ? <small>{item.settlement}</small> : null}</td><td><span className={item.status === "Підтверджено" ? "status status-confirmed" : "status status-review"}>{translateCaseStatus(item.status, language)}</span></td></tr>)}
             </tbody></table>{filtered.length > 100 && <div className="table-foot">{language === "en" ? `Showing 100 of ${filtered.length} records. Export includes the full selection.` : `Показано 100 із ${filtered.length} записів. Експорт містить усю вибірку.`}</div>}{!filtered.length && <div className="table-empty">Немає записів для відображення.</div>}</div>
