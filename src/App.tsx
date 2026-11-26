@@ -840,7 +840,26 @@ export default function App() {
   const [mapExporting, setMapExporting] = useState(false);
   const [mapExportScale, setMapExportScale] = useState<2 | 3 | 4>(3);
   const [mapFullscreen, setMapFullscreen] = useState(false);
-  useEffect(() => { window.dispatchEvent(new Event("resize")); }, [mapFullscreen]);
+  const mapSectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const syncFullscreen = () => {
+      setMapFullscreen(document.fullscreenElement === mapSectionRef.current);
+      window.dispatchEvent(new Event("resize"));
+    };
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
+  }, []);
+  const toggleMapFullscreen = async () => {
+    const mapElement = mapSectionRef.current;
+    if (!mapElement) return;
+    try {
+      if (document.fullscreenElement === mapElement) await document.exitFullscreen();
+      else await mapElement.requestFullscreen();
+    } catch (error) {
+      console.error("Unable to enter map full-screen mode:", error);
+      setMapFullscreen(document.fullscreenElement === mapElement);
+    }
+  };
   const [mapBaseLayer, setMapBaseLayer] = useState<"street" | "satellite">("street");
   const mapExportRef = useRef<HTMLDivElement>(null);
   const [activeRegistryId, setActiveRegistryId] = useState("healthcare");
@@ -1606,8 +1625,8 @@ export default function App() {
             <p className="layer-empty">Записи зберігаються локально в цьому браузері. Координати використовуються для відображення точок на карті. Для ліній і полігонів імпортуй GeoJSON.</p></>}
           </aside>
 
-          <section className={mapFullscreen ? "map-section map-section--fullscreen" : "map-section"}>
-            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{language === "en" ? `${filtered.length + filteredRegistryRecords.length} point records on map` : `${filtered.length + filteredRegistryRecords.length} точкових записів на карті`}</span></div><div className="top-actions"><button type="button" className="button button-light map-fullscreen-button" onClick={() => setMapFullscreen((current) => !current)} aria-label={mapFullscreen ? (language === "en" ? "Exit full screen map" : "Вийти з повноекранного режиму") : (language === "en" ? "Expand map to full screen" : "Розгорнути карту на весь екран")}><>{mapFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{mapFullscreen ? (language === "en" ? "Exit full screen" : "Згорнути карту") : (language === "en" ? "Full screen" : "На весь екран")}</></button><select className="map-export-select map-layer-select" aria-label={language === "en" ? "Map type" : "Тип карти"} value={mapBaseLayer} onChange={(event) => setMapBaseLayer(event.target.value as typeof mapBaseLayer)}><option value="street">{language === "en" ? "Street map" : "Вулична карта"}</option><option value="satellite">{language === "en" ? "Satellite" : "Супутник"}</option></select><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span><select className="map-export-select" aria-label={language === "en" ? "Export format" : "Формат експорту карти"} value={mapExportFormat} onChange={(event) => setMapExportFormat(event.target.value as "png" | "jpeg" | "pdf")}><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="pdf">PDF</option></select><select className="map-export-select" aria-label={language === "en" ? "Export resolution" : "Роздільна здатність експорту"} value={mapExportScale} onChange={(event) => setMapExportScale(Number(event.target.value) as 2 | 3 | 4)}><option value={2}>2×</option><option value={3}>3×</option><option value={4}>4×</option></select><button className="button button-light map-export-button" onClick={exportMapImage} disabled={mapExporting}><Download size={15} /> {mapExporting ? (language === "en" ? "Creating…" : "Створення…") : "Зберегти карту"}</button></div></div>
+          <section ref={mapSectionRef} className={mapFullscreen ? "map-section map-section--fullscreen" : "map-section"}>
+            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{language === "en" ? `${filtered.length + filteredRegistryRecords.length} point records on map` : `${filtered.length + filteredRegistryRecords.length} точкових записів на карті`}</span></div><div className="top-actions"><button type="button" className="button button-light map-fullscreen-button" onClick={toggleMapFullscreen} aria-label={mapFullscreen ? (language === "en" ? "Exit full screen map" : "Вийти з повноекранного режиму") : (language === "en" ? "Expand map to full screen" : "Розгорнути карту на весь екран")}><>{mapFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{mapFullscreen ? (language === "en" ? "Exit full screen" : "Згорнути карту") : (language === "en" ? "Full screen" : "На весь екран")}</></button><select className="map-export-select map-layer-select" aria-label={language === "en" ? "Map type" : "Тип карти"} value={mapBaseLayer} onChange={(event) => setMapBaseLayer(event.target.value as typeof mapBaseLayer)}><option value="street">{language === "en" ? "Street map" : "Вулична карта"}</option><option value="satellite">{language === "en" ? "Satellite" : "Супутник"}</option></select><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span><select className="map-export-select" aria-label={language === "en" ? "Export format" : "Формат експорту карти"} value={mapExportFormat} onChange={(event) => setMapExportFormat(event.target.value as "png" | "jpeg" | "pdf")}><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="pdf">PDF</option></select><select className="map-export-select" aria-label={language === "en" ? "Export resolution" : "Роздільна здатність експорту"} value={mapExportScale} onChange={(event) => setMapExportScale(Number(event.target.value) as 2 | 3 | 4)}><option value={2}>2×</option><option value={3}>3×</option><option value={4}>4×</option></select><button className="button button-light map-export-button" onClick={exportMapImage} disabled={mapExporting}><Download size={15} /> {mapExporting ? (language === "en" ? "Creating…" : "Створення…") : "Зберегти карту"}</button></div></div>
             <div className="map-wrap" ref={mapExportRef}>
               <MapContainer center={[49.45, 25.55]} zoom={8} zoomDelta={0.25} zoomSnap={0.25} wheelPxPerZoomLevel={120} scrollWheelZoom preferCanvas={true} className="leaflet-map">
                 <DrawController mode={drawMode} onMapClick={handleMapDrawClick} />
