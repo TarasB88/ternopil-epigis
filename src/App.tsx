@@ -1725,7 +1725,7 @@ export default function App() {
                 <button type="button" className="text-button" onClick={resetSelectedCaseMarker}>{language === "en" ? "Reset" : "Скинути позначку"}</button>
               </div>
               <p>{language === "en" ? "Changes are saved automatically in this browser and included in CSV/Excel exports." : "Зміни автоматично зберігаються в цьому браузері та потрапляють до CSV/Excel-експорту."}</p>
-            </div>
+            </div>}
             <div className="table-scroll"><table><thead><tr><th>ID</th><th>Нозологія</th><th>Дата</th><th>Громада / НП</th><th>Статус</th></tr></thead><tbody>
               {filtered.slice(0, 100).map((item) => <tr key={item.id} className={selected?.id === item.id ? "selected-row" : ""} onClick={() => setSelected(item)}><td className="case-id">{item.id}</td><td>{item.disease}</td><td>{item.date}</td><td>{item.hromada}{item.settlement ? <small>{item.settlement}</small> : null}</td><td><span className={item.status === "Підтверджено" ? "status status-confirmed" : "status status-review"}>{translateCaseStatus(item.status, language)}</span></td></tr>)}
             </tbody></table>{filtered.length > 100 && <div className="table-foot">{language === "en" ? `Showing 100 of ${filtered.length} records. Export includes the full selection.` : `Показано 100 із ${filtered.length} записів. Експорт містить усю вибірку.`}</div>}{!filtered.length && <div className="table-empty">Немає записів для відображення.</div>}</div>
