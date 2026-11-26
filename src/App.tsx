@@ -3,7 +3,7 @@ import { CircleMarker, GeoJSON, MapContainer, Marker, Polygon, Polyline, Popup, 
 import { buffer as turfBuffer } from "@turf/buffer";
 import { booleanIntersects } from "@turf/boolean-intersects";
 import L from "leaflet";
-import { Activity, AlertTriangle, CalendarDays, ChevronDown, Download, FileSpreadsheet, Filter, Layers3, LocateFixed, MapPin, Pencil, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
+import { Activity, AlertTriangle, CalendarDays, ChevronDown, Download, FileSpreadsheet, Filter, Layers3, LocateFixed, MapPin, Maximize2, Minimize2, Pencil, Search, ShieldCheck, Upload, Users, X } from "lucide-react";
 import * as XLSX from "xlsx";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -297,8 +297,7 @@ function toCase(row: Record<string, unknown>, index: number): CaseRecord | null 
   const latitude = parseSpreadsheetNumber(rawLatitude);
   const longitude = parseSpreadsheetNumber(rawLongitude);
   const disease = String(get("disease", "нозологія", "діагноз", "final_diagnosis", "інфекційне захворювання", "назва нозології") ?? "").trim();
-  const date = normalizeDate(get("date", "дата", "дата захворювання", "onset_date", "дата початку", "дата реєстрації"));
-  const hromada = String(get("hromada", "громада", "територія", "територіальна громада", "назва громади", "отг") ?? "").trim() || "Не визначено";
+  const date = normalizeDate(get("date", "дата", "дата захворювання", "onset_date", "дата початку", "дата реєстрації"));  const hromada = String(get("hromada", "громада", "територія", "територіальна громада", "назва громади", "отг") ?? "").trim() || "Не визначено";
   // Keep epidemiological records even when location coordinates are absent or incomplete.
   if (!disease || !date) return null;
   const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude) &&
@@ -597,8 +596,7 @@ const UI_TRANSLATIONS: Record<string, string> = {
   "Переглянути": "View",
   "Додати": "Add",
   "Так": "Yes",
-  "Ні": "No",
-  "Не вдалося зберегти випадки: сховище браузера переповнене або недоступне.": "Could not save cases: browser storage is full or unavailable.",
+  "Ні": "No",  "Не вдалося зберегти випадки: сховище браузера переповнене або недоступне.": "Could not save cases: browser storage is full or unavailable.",
   "Не вдалося зберегти реєстр: сховище браузера переповнене або недоступне.": "Could not save the registry: browser storage is full or unavailable.",
   "Не вдалося зберегти географічні шари: сховище браузера переповнене або недоступне.": "Could not save geographic layers: browser storage is full or unavailable.",
   "Не вдалося завантажити межі громад. Перевір наявність файлу public/data/ternopil-hromadas.geojson у збірці.": "Could not load community boundaries. Check that public/data/ternopil-hromadas.geojson is included in the build.",
@@ -841,6 +839,8 @@ export default function App() {
   const [mapExportFormat, setMapExportFormat] = useState<"png" | "jpeg" | "pdf">("png");
   const [mapExporting, setMapExporting] = useState(false);
   const [mapExportScale, setMapExportScale] = useState<2 | 3 | 4>(3);
+  const [mapFullscreen, setMapFullscreen] = useState(false);
+  useEffect(() => { window.dispatchEvent(new Event("resize")); }, [mapFullscreen]);
   const [mapBaseLayer, setMapBaseLayer] = useState<"street" | "satellite">("street");
   const mapExportRef = useRef<HTMLDivElement>(null);
   const [activeRegistryId, setActiveRegistryId] = useState("healthcare");
@@ -897,8 +897,7 @@ export default function App() {
       .then((response) => {
         if (!response.ok) throw new Error("GeoJSON unavailable");
         return response.json();
-      })
-      .then((data) => {
+      })      .then((data) => {
         if (!cancelled && data?.type === "FeatureCollection" && Array.isArray(data.features)) {
           setHromadaBoundaries(data);
         }
@@ -1197,8 +1196,7 @@ export default function App() {
       };
       setGisLayers((current) => [...current, layer]);
       setLayerMessage(`Додано шар «${layer.name}»: ${supported.length} об'єктів. Відхилено некоректних або непідтримуваних: ${data.features.length - supported.length}.`);
-    } catch {
-      setLayerMessage("Не вдалося прочитати GeoJSON. Перевір структуру та синтаксис JSON.");
+    } catch {      setLayerMessage("Не вдалося прочитати GeoJSON. Перевір структуру та синтаксис JSON.");
     } finally {
       if (layerFileRef.current) layerFileRef.current.value = "";
     }
@@ -1497,8 +1495,7 @@ export default function App() {
       ...TEMPLATE_HEADERS.map((key) => ["Cases", key, key, key === "latitude" || key === "longitude" || key === "age" ? "Number" : key === "date" ? "Date YYYY-MM-DD" : "Text", ["disease", "date", "hromada", "latitude", "longitude"].includes(key) ? "Yes" : "No", "The existing Cases sheet structure is preserved."]),
       ...REGISTRIES.flatMap((registry) => [
         ...registry.fields.map((field) => [REGISTRY_SHEET_NAMES[registry.id], field.key, UI_TRANSLATIONS[field.label] ?? field.label, workbookFieldType(field.type), field.required ? "Yes" : "No", (field.options ?? []).join(" / ")]),
-        [REGISTRY_SHEET_NAMES[registry.id], "latitude", "Latitude", "Number", "Yes", "WGS84 decimal degrees, from -90 to 90"],
-        [REGISTRY_SHEET_NAMES[registry.id], "longitude", "Longitude", "Number", "Yes", "WGS84 decimal degrees, from -180 to 180"],
+        [REGISTRY_SHEET_NAMES[registry.id], "latitude", "Latitude", "Number", "Yes", "WGS84 decimal degrees, from -90 to 90"],        [REGISTRY_SHEET_NAMES[registry.id], "longitude", "Longitude", "Number", "Yes", "WGS84 decimal degrees, from -180 to 180"],
         [REGISTRY_SHEET_NAMES[registry.id], "record_id", "Internal record ID", "Text", "No", "Leave blank; EpiGIS will generate an ID automatically."]
       ]),
       ["GeoLayers", "geojson_chunk", "GeoJSON fragment", "Text", "Yes", "System-managed structure for points, lines, polygons, buffers and other geographic layers."],
@@ -1609,8 +1606,8 @@ export default function App() {
             <p className="layer-empty">Записи зберігаються локально в цьому браузері. Координати використовуються для відображення точок на карті. Для ліній і полігонів імпортуй GeoJSON.</p></>}
           </aside>
 
-          <section className="map-section">
-            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{language === "en" ? `${filtered.length + filteredRegistryRecords.length} point records on map` : `${filtered.length + filteredRegistryRecords.length} точкових записів на карті`}</span></div><div className="top-actions"><select className="map-export-select map-layer-select" aria-label={language === "en" ? "Map type" : "Тип карти"} value={mapBaseLayer} onChange={(event) => setMapBaseLayer(event.target.value as typeof mapBaseLayer)}><option value="street">{language === "en" ? "Street map" : "Вулична карта"}</option><option value="satellite">{language === "en" ? "Satellite" : "Супутник"}</option></select><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span><select className="map-export-select" aria-label={language === "en" ? "Export format" : "Формат експорту карти"} value={mapExportFormat} onChange={(event) => setMapExportFormat(event.target.value as "png" | "jpeg" | "pdf")}><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="pdf">PDF</option></select><select className="map-export-select" aria-label={language === "en" ? "Export resolution" : "Роздільна здатність експорту"} value={mapExportScale} onChange={(event) => setMapExportScale(Number(event.target.value) as 2 | 3 | 4)}><option value={2}>2×</option><option value={3}>3×</option><option value={4}>4×</option></select><button className="button button-light map-export-button" onClick={exportMapImage} disabled={mapExporting}><Download size={15} /> {mapExporting ? (language === "en" ? "Creating…" : "Створення…") : "Зберегти карту"}</button></div></div>
+          <section className={mapFullscreen ? "map-section map-section--fullscreen" : "map-section"}>
+            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{language === "en" ? `${filtered.length + filteredRegistryRecords.length} point records on map` : `${filtered.length + filteredRegistryRecords.length} точкових записів на карті`}</span></div><div className="top-actions"><button type="button" className="button button-light map-fullscreen-button" onClick={() => setMapFullscreen((current) => !current)} aria-label={mapFullscreen ? (language === "en" ? "Exit full screen map" : "Вийти з повноекранного режиму") : (language === "en" ? "Expand map to full screen" : "Розгорнути карту на весь екран")}><>{mapFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{mapFullscreen ? (language === "en" ? "Exit full screen" : "Згорнути карту") : (language === "en" ? "Full screen" : "На весь екран")}</></button><select className="map-export-select map-layer-select" aria-label={language === "en" ? "Map type" : "Тип карти"} value={mapBaseLayer} onChange={(event) => setMapBaseLayer(event.target.value as typeof mapBaseLayer)}><option value="street">{language === "en" ? "Street map" : "Вулична карта"}</option><option value="satellite">{language === "en" ? "Satellite" : "Супутник"}</option></select><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span><select className="map-export-select" aria-label={language === "en" ? "Export format" : "Формат експорту карти"} value={mapExportFormat} onChange={(event) => setMapExportFormat(event.target.value as "png" | "jpeg" | "pdf")}><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="pdf">PDF</option></select><select className="map-export-select" aria-label={language === "en" ? "Export resolution" : "Роздільна здатність експорту"} value={mapExportScale} onChange={(event) => setMapExportScale(Number(event.target.value) as 2 | 3 | 4)}><option value={2}>2×</option><option value={3}>3×</option><option value={4}>4×</option></select><button className="button button-light map-export-button" onClick={exportMapImage} disabled={mapExporting}><Download size={15} /> {mapExporting ? (language === "en" ? "Creating…" : "Створення…") : "Зберегти карту"}</button></div></div>
             <div className="map-wrap" ref={mapExportRef}>
               <MapContainer center={[49.45, 25.55]} zoom={8} zoomDelta={0.25} zoomSnap={0.25} wheelPxPerZoomLevel={120} scrollWheelZoom preferCanvas={true} className="leaflet-map">
                 <DrawController mode={drawMode} onMapClick={handleMapDrawClick} />
@@ -1798,4 +1795,3 @@ export default function App() {
 
 function Metric({ icon, label, value, note }: { icon: React.ReactNode; label: string; value: string; note: string }) {
   return <div className="metric-card"><div className="metric-icon">{icon}</div><div className="metric-label">{label}</div><div className="metric-value">{value}</div><div className="metric-note">{note}</div></div>;
-}
