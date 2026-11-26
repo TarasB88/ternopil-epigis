@@ -1471,7 +1471,7 @@ export default function App() {
 
     const infoRows = language === "en" ? [
       ["Sheet", "Purpose", "Completion rules"],
-      ["Cases", "Infectious disease cases", "The existing column structure is unchanged. Required fields: disease, date, hromada, latitude, longitude."],
+      ["Cases", "Infectious disease cases", "Required fields: disease, date, hromada, latitude, longitude. Optional markerColor and markerIcon columns store each case map symbol and color."],
       ...REGISTRIES.map((registry) => [REGISTRY_SHEET_NAMES[registry.id], UI_TRANSLATIONS[registry.label] ?? registry.label, "One row per feature. Required fields are defined in the relevant registry; latitude and longitude are required."]),
       ["GeoLayers", "GeoJSON layers, water pipelines, boundaries, buffers, manually drawn features and spatial analysis results", "System-managed sheet. GeoJSON is stored in chunks in the geojson_chunk column; do not edit this sheet manually."],
       ["Updates", "Workbook as a working data store", "Download the workbook, add or edit records, then import it into EpiGIS. Only datasets with populated worksheets are imported; empty worksheets do not clear existing data."],
@@ -1479,7 +1479,7 @@ export default function App() {
       ["Privacy", "Usage restrictions", "Do not upload personal or medically identifiable data. Enter population data only in aggregate form. This version does not provide server-side synchronisation between users."]
     ] : [
       ["Аркуш", "Призначення", "Правила заповнення"],
-      ["Cases", "Випадки інфекційної захворюваності", "Чинна структура колонок не змінена. Обов’язкові поля: disease, date, hromada, latitude, longitude."],
+      ["Cases", "Випадки інфекційної захворюваності", "Обов’язкові поля: disease, date, hromada, latitude, longitude. Необов’язкові поля markerColor і markerIcon зберігають колір та символ точки випадку на карті."],
       ...REGISTRIES.map((registry) => [REGISTRY_SHEET_NAMES[registry.id], registry.label, "Один рядок — один об’єкт. Обов’язкові поля визначені у відповідному реєстрі; координати latitude/longitude обов’язкові."]),
       ["GeoLayers", "GeoJSON-шари, водогони, трубопроводи, межі, буфери, ручні об'єкти та результати просторового аналізу", "Службовий аркуш. GeoJSON зберігається фрагментами у колонці geojson_chunk; не змінюй цей аркуш вручну."],
       ["Оновлення", "Книга є робочим файловим сховищем", "Завантаж книгу, додай або відредагуй записи, потім імпортуй її в EpiGIS. Імпортуються лише ті набори даних, аркуші яких містять заповнені рядки; порожні аркуші не очищують сховище."],
