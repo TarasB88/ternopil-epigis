@@ -840,6 +840,7 @@ export default function App() {
   const [layerMessage, setLayerMessage] = useState("");
   const [mapExportFormat, setMapExportFormat] = useState<"png" | "jpeg" | "pdf">("png");
   const [mapExporting, setMapExporting] = useState(false);
+  const [mapExportScale, setMapExportScale] = useState<2 | 3 | 4>(3);
   const [mapBaseLayer, setMapBaseLayer] = useState<"street" | "satellite">("street");
   const mapExportRef = useRef<HTMLDivElement>(null);
   const [activeRegistryId, setActiveRegistryId] = useState("healthcare");
@@ -1380,7 +1381,7 @@ export default function App() {
       await new Promise((resolve) => setTimeout(resolve, 250));
       const canvas = await html2canvas(target, {
         backgroundColor: "#ffffff",
-        scale: 2,
+        scale: mapExportScale,
         useCORS: true,
         allowTaint: false,
         logging: false,
@@ -1609,7 +1610,7 @@ export default function App() {
           </aside>
 
           <section className="map-section">
-            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{language === "en" ? `${filtered.length + filteredRegistryRecords.length} point records on map` : `${filtered.length + filteredRegistryRecords.length} точкових записів на карті`}</span></div><div className="top-actions"><select className="map-export-select map-layer-select" aria-label={language === "en" ? "Map type" : "Тип карти"} value={mapBaseLayer} onChange={(event) => setMapBaseLayer(event.target.value as typeof mapBaseLayer)}><option value="street">{language === "en" ? "Street map" : "Вулична карта"}</option><option value="satellite">{language === "en" ? "Satellite" : "Супутник"}</option></select><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span><select className="map-export-select" aria-label="Формат експорту карти" value={mapExportFormat} onChange={(event) => setMapExportFormat(event.target.value as "png" | "jpeg" | "pdf")}><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="pdf">PDF</option></select><button className="button button-light map-export-button" onClick={exportMapImage} disabled={mapExporting}><Download size={15} /> {mapExporting ? (language === "en" ? "Creating…" : "Створення…") : "Зберегти карту"}</button></div></div>
+            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{language === "en" ? `${filtered.length + filteredRegistryRecords.length} point records on map` : `${filtered.length + filteredRegistryRecords.length} точкових записів на карті`}</span></div><div className="top-actions"><select className="map-export-select map-layer-select" aria-label={language === "en" ? "Map type" : "Тип карти"} value={mapBaseLayer} onChange={(event) => setMapBaseLayer(event.target.value as typeof mapBaseLayer)}><option value="street">{language === "en" ? "Street map" : "Вулична карта"}</option><option value="satellite">{language === "en" ? "Satellite" : "Супутник"}</option></select><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span><select className="map-export-select" aria-label={language === "en" ? "Export format" : "Формат експорту карти"} value={mapExportFormat} onChange={(event) => setMapExportFormat(event.target.value as "png" | "jpeg" | "pdf")}><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="pdf">PDF</option></select><select className="map-export-select" aria-label={language === "en" ? "Export resolution" : "Роздільна здатність експорту"} value={mapExportScale} onChange={(event) => setMapExportScale(Number(event.target.value) as 2 | 3 | 4)}><option value={2}>2×</option><option value={3}>3×</option><option value={4}>4×</option></select><button className="button button-light map-export-button" onClick={exportMapImage} disabled={mapExporting}><Download size={15} /> {mapExporting ? (language === "en" ? "Creating…" : "Створення…") : "Зберегти карту"}</button></div></div>
             <div className="map-wrap" ref={mapExportRef}>
               <MapContainer center={[49.45, 25.55]} zoom={8} zoomDelta={0.25} zoomSnap={0.25} wheelPxPerZoomLevel={120} scrollWheelZoom preferCanvas={true} className="leaflet-map">
                 <DrawController mode={drawMode} onMapClick={handleMapDrawClick} />
