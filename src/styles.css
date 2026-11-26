@@ -175,3 +175,13 @@
 .thematic-map-source a{align-self:flex-start;color:#176b55;font-size:10px;font-weight:700;text-decoration:none;border-bottom:1px solid #8bb6a4;padding-bottom:1px}
 .thematic-map-source a:hover{color:#0b4938;border-color:#0b4938}
 @media(max-width:760px){.thematic-map-source{top:9px;right:9px;width:min(290px,calc(100% - 18px));padding:10px 12px}.thematic-map-status{right:8px;bottom:8px;font-size:9px}}
+
+.case-marker-host{background:transparent;border:0}
+.case-marker-editor{margin:0 17px 12px;padding:12px;border:1px solid #dce9e1;border-radius:9px;background:#f8fbf9}
+.case-marker-editor-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:10px;color:#244438}
+.case-marker-editor-heading span{font-size:9px;color:#71877b;font-weight:700}
+.case-marker-editor-controls{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-top:9px}
+.case-marker-editor-controls label{display:flex;flex-direction:column;gap:5px;font-size:9px;font-weight:700;color:#5b7066;min-width:120px}
+.case-marker-editor-controls select{min-width:130px;padding:7px 9px;border:1px solid #dfe8e3;border-radius:6px;background:#fff;color:#344b40;font-size:10px}
+.case-marker-editor-controls .text-button{border:0;background:transparent;color:#28765c;font-size:10px;font-weight:700;padding:7px 3px;cursor:pointer}
+.case-marker-editor p{margin:8px 0 0;font-size:9px;color:#84958b;line-height:1.45}
