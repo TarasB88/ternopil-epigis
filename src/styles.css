@@ -193,3 +193,6 @@
 .map-fullscreen-button{white-space:nowrap;padding:8px 10px;font-size:11px}
 body:has(.map-section--fullscreen){overflow:hidden}
 @media(max-width:760px){.map-section--fullscreen{inset:0!important;border-radius:0!important}.map-section--fullscreen .map-toolbar{padding:9px 10px}.map-section--fullscreen .map-toolbar>.top-actions{gap:5px}.map-section--fullscreen .map-fullscreen-button{flex:0 0 auto;padding:8px}.map-section--fullscreen .map-wrap{min-height:0!important}}
+
+/* Keep the full-screen workspace focused on the map; the case register remains available in normal view. */
+.map-section--fullscreen .case-register-panel{display:none!important}
