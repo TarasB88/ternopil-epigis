@@ -1692,6 +1692,7 @@ export default function App() {
               </section>;
             })()}
 
+            <div className="case-register-panel">
             <div className="table-heading"><div><h2>Реєстр випадків</h2><p>Натисни на рядок, щоб переглянути деталі</p></div><span>{language === "en" ? `${filtered.length} records` : `${filtered.length} записів`}</span></div>
             {selected && <div className="case-marker-editor">
               <div className="case-marker-editor-heading">
@@ -1727,6 +1728,7 @@ export default function App() {
             <div className="table-scroll"><table><thead><tr><th>ID</th><th>Нозологія</th><th>Дата</th><th>Громада / НП</th><th>Статус</th></tr></thead><tbody>
               {filtered.slice(0, 100).map((item) => <tr key={item.id} className={selected?.id === item.id ? "selected-row" : ""} onClick={() => setSelected(item)}><td className="case-id">{item.id}</td><td>{item.disease}</td><td>{item.date}</td><td>{item.hromada}{item.settlement ? <small>{item.settlement}</small> : null}</td><td><span className={item.status === "Підтверджено" ? "status status-confirmed" : "status status-review"}>{translateCaseStatus(item.status, language)}</span></td></tr>)}
             </tbody></table>{filtered.length > 100 && <div className="table-foot">{language === "en" ? `Showing 100 of ${filtered.length} records. Export includes the full selection.` : `Показано 100 із ${filtered.length} записів. Експорт містить усю вибірку.`}</div>}{!filtered.length && <div className="table-empty">Немає записів для відображення.</div>}</div>
+            </div>
             <div className="table-heading"><div><h2>Об’єкти предметних реєстрів</h2><p>За активними фільтрами реєстрів</p></div><span>{language === "en" ? `${filteredRegistryRecords.length} records` : `${filteredRegistryRecords.length} записів`}</span></div>
             <div className="table-scroll"><table><thead><tr><th>Реєстр</th><th>Об’єкт</th><th>Громада / НП</th><th>Тип / характеристика</th><th>Дата</th></tr></thead><tbody>
               {filteredRegistryRecords.slice(0, 100).map((record) => {
