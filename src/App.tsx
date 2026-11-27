@@ -89,6 +89,39 @@ function FitToLayer({ layer }: { layer: GISLayer | null }) {
   return null;
 }
 
+function OutsideRegionMask({ boundaries, visible }: { boundaries: any; visible: boolean }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!visible || !Array.isArray(boundaries?.features) || boundaries.features.length === 0) return;
+    // Reuse the 55 hromada polygons already loaded by EpiGIS as transparent holes in a white mask.
+    const worldRing: L.LatLngExpression[] = [
+      [-85.05112878, -180], [-85.05112878, 180],
+      [85.05112878, 180], [85.05112878, -180]
+    ];
+    const regionRings: L.LatLngExpression[][] = [];
+    const addPolygon = (coordinates: any) => {
+      const outerRing = coordinates?.[0];
+      if (!Array.isArray(outerRing) || outerRing.length < 4) return;
+      const ring = outerRing
+        .filter((point: unknown) => Array.isArray(point) && point.length >= 2)
+        .map((point: number[]) => [point[1], point[0]] as L.LatLngExpression);
+      if (ring.length >= 4) regionRings.push(ring);
+    };
+    boundaries.features.forEach((feature: any) => {
+      const geometry = feature?.geometry;
+      if (geometry?.type === "Polygon") addPolygon(geometry.coordinates);
+      if (geometry?.type === "MultiPolygon" && Array.isArray(geometry.coordinates)) geometry.coordinates.forEach(addPolygon);
+    });
+    if (regionRings.length === 0) return;
+    const mask = L.polygon([worldRing, ...regionRings], {
+      stroke: false, fillColor: "#ffffff", fillOpacity: 1, fillRule: "evenodd",
+      interactive: false, className: "outside-region-mask"
+    }).addTo(map);
+    return () => { map.removeLayer(mask); };
+  }, [map, boundaries, visible]);
+  return null;
+}
+
 function DrawController({ mode, onMapClick }: { mode: DrawMode; onMapClick: (lat: number, lng: number) => void }) {
   const map = useMap();
   useEffect(() => {
@@ -703,6 +736,8 @@ const UI_TRANSLATIONS: Record<string, string> = {
   "Число": "Number",
   "Дата YYYY-MM-DD": "Date YYYY-MM-DD",
   "Текст": "Text",
+  "Затінити за межами області": "Mask outside the oblast",
+  "Показати всю карту": "Show full map",
 };
 
 function translateGeometryType(value: unknown, language: "uk" | "en"): string {
@@ -861,6 +896,7 @@ export default function App() {
     }
   };
   const [mapBaseLayer, setMapBaseLayer] = useState<"street" | "satellite">("street");
+  const [showOutsideMask, setShowOutsideMask] = useState(false);
   const mapExportRef = useRef<HTMLDivElement>(null);
   const [activeRegistryId, setActiveRegistryId] = useState("healthcare");
   const [registryRecords, setRegistryRecords] = useState<RegistryRecord[]>(() => { try { const saved = localStorage.getItem("ternopil-epigis-registry-records-v1"); return saved ? JSON.parse(saved) as RegistryRecord[] : []; } catch { return []; } });
@@ -1626,7 +1662,7 @@ export default function App() {
           </aside>
 
           <section ref={mapSectionRef} className={mapFullscreen ? "map-section map-section--fullscreen" : "map-section"}>
-            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{language === "en" ? `${filtered.length + filteredRegistryRecords.length} point records on map` : `${filtered.length + filteredRegistryRecords.length} точкових записів на карті`}</span></div><div className="top-actions"><button type="button" className="button button-light map-fullscreen-button" onClick={toggleMapFullscreen} aria-label={mapFullscreen ? (language === "en" ? "Exit full screen map" : "Вийти з повноекранного режиму") : (language === "en" ? "Expand map to full screen" : "Розгорнути карту на весь екран")}><>{mapFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{mapFullscreen ? (language === "en" ? "Exit full screen" : "Згорнути карту") : (language === "en" ? "Full screen" : "На весь екран")}</></button><select className="map-export-select map-layer-select" aria-label={language === "en" ? "Map type" : "Тип карти"} value={mapBaseLayer} onChange={(event) => setMapBaseLayer(event.target.value as typeof mapBaseLayer)}><option value="street">{language === "en" ? "Street map" : "Вулична карта"}</option><option value="satellite">{language === "en" ? "Satellite" : "Супутник"}</option></select><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span><select className="map-export-select" aria-label={language === "en" ? "Export format" : "Формат експорту карти"} value={mapExportFormat} onChange={(event) => setMapExportFormat(event.target.value as "png" | "jpeg" | "pdf")}><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="pdf">PDF</option></select><select className="map-export-select" aria-label={language === "en" ? "Export resolution" : "Роздільна здатність експорту"} value={mapExportScale} onChange={(event) => setMapExportScale(Number(event.target.value) as 2 | 3 | 4)}><option value={2}>2×</option><option value={3}>3×</option><option value={4}>4×</option></select><button className="button button-light map-export-button" onClick={exportMapImage} disabled={mapExporting}><Download size={15} /> {mapExporting ? (language === "en" ? "Creating…" : "Створення…") : "Зберегти карту"}</button></div></div>
+            <div className="map-toolbar"><div><strong>Географічний огляд</strong><span>{language === "en" ? `${filtered.length + filteredRegistryRecords.length} point records on map` : `${filtered.length + filteredRegistryRecords.length} точкових записів на карті`}</span></div><div className="top-actions"><button type="button" className="button button-light map-fullscreen-button" onClick={toggleMapFullscreen} aria-label={mapFullscreen ? (language === "en" ? "Exit full screen map" : "Вийти з повноекранного режиму") : (language === "en" ? "Expand map to full screen" : "Розгорнути карту на весь екран")}><>{mapFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}{mapFullscreen ? (language === "en" ? "Exit full screen" : "Згорнути карту") : (language === "en" ? "Full screen" : "На весь екран")}</></button><select className="map-export-select map-layer-select" aria-label={language === "en" ? "Map type" : "Тип карти"} value={mapBaseLayer} onChange={(event) => setMapBaseLayer(event.target.value as typeof mapBaseLayer)}><option value="street">{language === "en" ? "Street map" : "Вулична карта"}</option><option value="satellite">{language === "en" ? "Satellite" : "Супутник"}</option></select><button type="button" className={showOutsideMask ? "button button-light map-mask-button active" : "button button-light map-mask-button"} onClick={() => setShowOutsideMask((value) => !value)} aria-pressed={showOutsideMask} title={translateUI(showOutsideMask ? "Показати всю карту" : "Затінити за межами області", language)}><ShieldCheck size={14} /> {translateUI(showOutsideMask ? "Показати всю карту" : "Затінити за межами області", language)}</button><span className="map-chip"><span className="pulse-dot" /> Карта онлайн</span><select className="map-export-select" aria-label={language === "en" ? "Export format" : "Формат експорту карти"} value={mapExportFormat} onChange={(event) => setMapExportFormat(event.target.value as "png" | "jpeg" | "pdf")}><option value="png">PNG</option><option value="jpeg">JPEG</option><option value="pdf">PDF</option></select><select className="map-export-select" aria-label={language === "en" ? "Export resolution" : "Роздільна здатність експорту"} value={mapExportScale} onChange={(event) => setMapExportScale(Number(event.target.value) as 2 | 3 | 4)}><option value={2}>2×</option><option value={3}>3×</option><option value={4}>4×</option></select><button className="button button-light map-export-button" onClick={exportMapImage} disabled={mapExporting}><Download size={15} /> {mapExporting ? (language === "en" ? "Creating…" : "Створення…") : "Зберегти карту"}</button></div></div>
             <div className="map-wrap" ref={mapExportRef}>
               <MapContainer center={[49.45, 25.55]} zoom={8} zoomDelta={0.25} zoomSnap={0.25} wheelPxPerZoomLevel={120} scrollWheelZoom preferCanvas={true} className="leaflet-map">
                 <DrawController mode={drawMode} onMapClick={handleMapDrawClick} />
@@ -1637,6 +1673,7 @@ export default function App() {
                   ? <TileLayer key="basemap-satellite" attribution='&copy; Esri, Maxar, Earthstar Geographics' url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" crossOrigin="anonymous" />
                   : <TileLayer key="basemap-street" attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" crossOrigin="anonymous" />}
 
+                <OutsideRegionMask boundaries={hromadaBoundaries} visible={showOutsideMask} />
                 {hromadaBoundaries && <GeoJSON
                   data={hromadaBoundaries}
                   style={(feature) => {
