@@ -228,3 +228,41 @@ body:has(.map-section--fullscreen){overflow:hidden}
 .outside-region-mask{pointer-events:none}
 @media(max-width:760px){.map-mask-button{flex:1 1 170px;min-height:34px;padding:0 8px;font-size:9px}}
 @media(max-width:760px){.map-section--fullscreen .map-mask-button{flex:1 1 155px}}
+
+/* Map controls: grouped by purpose for a clearer cartographic workflow. */
+.map-toolbar{height:auto;min-height:68px;gap:14px;padding:9px 14px}
+.map-toolbar-heading{display:flex;flex-direction:column;align-items:flex-start!important;justify-content:center;gap:4px!important;min-width:145px}
+.map-toolbar-heading strong{font:700 13px Manrope,sans-serif;color:#244438}
+.map-toolbar-heading span{font-size:10px;color:#8a9a91}
+.map-management-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex:1;min-width:0}
+.map-control-group{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}
+.map-control-group-label{font-size:8px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#819187;line-height:1}
+.map-control-group-controls{display:flex;align-items:center;gap:6px;min-width:0}
+.map-management-actions .map-chip{flex:0 0 auto;white-space:nowrap}
+.map-management-actions .button{height:32px;min-height:32px;padding:0 10px;border-radius:7px;font-size:10px;white-space:nowrap}
+.map-management-actions .map-export-select{flex:0 0 auto;min-width:66px}
+.map-management-actions .map-layer-select{min-width:118px}
+.map-management-actions .map-export-button{min-width:112px}
+@media(max-width:1100px){
+ .map-toolbar{align-items:flex-start;flex-wrap:wrap}
+ .map-toolbar-heading{min-width:100%;flex-direction:row;align-items:center!important;gap:10px!important}
+ .map-management-actions{width:100%;justify-content:flex-start;flex-wrap:wrap;row-gap:10px}
+ .map-export-group{margin-left:auto}
+}
+@media(max-width:760px){
+ .map-toolbar{padding:10px 12px;gap:10px}
+ .map-management-actions{gap:9px}
+ .map-control-group{flex:1 1 100%;width:100%}
+ .map-control-group-controls{width:100%;flex-wrap:wrap}
+ .map-control-group-controls .map-layer-select{flex:1 1 120px}
+ .map-control-group-controls .map-mask-button{flex:2 1 180px}
+ .map-control-group-controls .map-fullscreen-button{flex:1 1 125px}
+ .map-export-group{margin-left:0}
+ .map-export-group .map-control-group-controls{display:grid;grid-template-columns:minmax(58px,1fr) minmax(58px,1fr) minmax(110px,1.5fr)}
+ .map-management-actions .map-chip{display:none}
+ .map-management-actions .map-export-select{width:100%;min-width:0}
+ .map-management-actions .map-export-button{width:100%;min-width:0}
+}
+@media(min-width:761px) and (max-width:1100px){
+ .map-management-actions .map-chip{margin-right:auto}
+}
