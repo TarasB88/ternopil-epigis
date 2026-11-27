@@ -220,3 +220,11 @@ body:has(.map-section--fullscreen){overflow:hidden}
   min-height:0!important;
   width:100%!important;
 }
+
+
+/* Toggle for a white mask outside Ternopil Oblast. */
+.map-mask-button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:0 10px;font-size:10px;white-space:nowrap}
+.map-mask-button.active{border-color:#6ca58d;background:#e7f3eb;color:#176b55;box-shadow:inset 0 0 0 1px #6ca58d}
+.outside-region-mask{pointer-events:none}
+@media(max-width:760px){.map-mask-button{flex:1 1 170px;min-height:34px;padding:0 8px;font-size:9px}}
+@media(max-width:760px){.map-section--fullscreen .map-mask-button{flex:1 1 155px}}
